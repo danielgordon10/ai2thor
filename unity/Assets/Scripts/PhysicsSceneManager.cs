@@ -284,10 +284,43 @@ public class PhysicsSceneManager : MonoBehaviour
 		{
 			HowManyCouldntSpawn = SpawnedObjects.Count;
 
-			//for each object in RequiredObjects, start a list of what objects it's allowed 
-			//to spawn in by checking the PlacementRestrictions dictionary
-			foreach(GameObject go in SpawnedObjects)
+            //for each object in RequiredObjects, start a list of what objects it's allowed 
+            //to spawn in by checking the PlacementRestrictions dictionary
+            System.Random rnd = new System.Random(seed);
+            List<GameObject> simObjectCopies = new List<GameObject>();
+
+            foreach (GameObject go in SpawnedObjects)
+            {
+                SimObjPhysics gop = go.GetComponent<SimObjPhysics>();
+                int numRepeats = 1;
+                if (maxcount > 1)
+                {
+                    numRepeats = rnd.Next(1, maxcount);
+                }
+                if (numRepeats == 1)
+                {
+                    simObjectCopies.Add(go);
+                }
+                else
+                {
+                    for (int j = 0; j < numRepeats; j++)
+                    {
+                        // Add a copy of the item.
+                        SimObjPhysics copy = Instantiate(gop);
+                        copy.name += "" + j;
+                        copy.UniqueID = gop.UniqueID + "_copy_" + j;
+                        copy.uniqueID = copy.UniqueID;
+                        //Randomizer randomizer = (copy.gameObject.GetComponentInChildren<Randomizer>() as Randomizer);
+                        //randomizer.Randomize(rnd.Next(0, 2147483647));
+                        simObjectCopies.Add(copy.gameObject);
+                    }
+                }
+            }
+            simObjectCopies.Shuffle();
+
+            foreach (GameObject go in simObjectCopies)
 			{
+                //Debug.Log("Game Object" + go.GetComponent<SimObjPhysics>().UniqueID);
 				AllowedToSpawnInAndExistsInScene = new Dictionary<SimObjType, List<SimObjPhysics>>();
 
 				SimObjType goObjType = go.GetComponent<SimObjPhysics>().ObjType;
@@ -345,98 +378,90 @@ public class PhysicsSceneManager : MonoBehaviour
 			
 					//each sop here is a valid receptacle
 					bool spawned = false;
-					foreach(SimObjPhysics sop in ShuffleSimObjPhysicsDictList(AllowedToSpawnInAndExistsInScene))
-					{
-						//targetReceptacle = sop;
+                    foreach (SimObjPhysics sop in ShuffleSimObjPhysicsDictList(AllowedToSpawnInAndExistsInScene))
+                    {
+                        //Debug.Log("Trying sop " + sop.UniqueID);
+                        if (sop.IsPickupable)
+                        {
+                            Debug.Log("Skipping spawn spot " + sop.UniqueID);
+                            continue;
+                        }
 
-						//check if the target Receptacle is an ObjectSpecificReceptacle
-						//if so, if this game object is compatible with the ObjectSpecific restrictions, place it!
-						//this is specifically for things like spawning a mug inside a coffee maker
-						if(sop.DoesThisObjectHaveThisSecondaryProperty(SimObjSecondaryProperty.ObjectSpecificReceptacle))
-						{
-							ObjectSpecificReceptacle osr = sop.GetComponent<ObjectSpecificReceptacle>();
 
-							if(osr.HasSpecificType(go.GetComponent<SimObjPhysics>().ObjType))
-							{
-								//in the random spawn function, we need this additional check because there isn't a chance for
-								//the physics update loop to fully update osr.isFull() correctly, which can cause multiple objects
-								//to be placed on the same spot (ie: 2 pots on the same burner)
-								if(osr.attachPoint.transform.childCount > 0)
-								{
-									break;
-								}
+                        //targetReceptacle = sop;
 
-								//perform additional checks if this is a Stove Burner! 
-								if(sop.GetComponent<SimObjPhysics>().Type == SimObjType.StoveBurner)
-								{
-									if(StoveTopCheckSpawnArea(go.GetComponent<SimObjPhysics>(), osr.attachPoint.transform.position,
-									osr.attachPoint.transform.rotation, false) == true)
-									{
-										//print("moving object now");
-										go.transform.position = osr.attachPoint.position;
-										go.transform.SetParent(osr.attachPoint.transform);
-										go.transform.localRotation = Quaternion.identity;
-										go.GetComponent<Rigidbody>().isKinematic = true;
+                        //check if the target Receptacle is an ObjectSpecificReceptacle
+                        //if so, if this game object is compatible with the ObjectSpecific restrictions, place it!
+                        //this is specifically for things like spawning a mug inside a coffee maker
+                        if (sop.DoesThisObjectHaveThisSecondaryProperty(SimObjSecondaryProperty.ObjectSpecificReceptacle))
+                        {
+                            ObjectSpecificReceptacle osr = sop.GetComponent<ObjectSpecificReceptacle>();
 
-										HowManyCouldntSpawn--;
-										spawned = true;
+                            if (osr.HasSpecificType(go.GetComponent<SimObjPhysics>().ObjType))
+                            {
+                                //in the random spawn function, we need this additional check because there isn't a chance for
+                                //the physics update loop to fully update osr.isFull() correctly, which can cause multiple objects
+                                //to be placed on the same spot (ie: 2 pots on the same burner)
+                                if (osr.attachPoint.transform.childCount > 0)
+                                {
+                                    break;
+                                }
 
-										// print(go.transform.name + " was spawned in " + sop.transform.name);
+                                //perform additional checks if this is a Stove Burner! 
+                                if (sop.GetComponent<SimObjPhysics>().Type == SimObjType.StoveBurner)
+                                {
+                                    if (StoveTopCheckSpawnArea(go.GetComponent<SimObjPhysics>(), osr.attachPoint.transform.position,
+                                    osr.attachPoint.transform.rotation, false) == true)
+                                    {
+                                        //print("moving object now");
+                                        go.transform.position = osr.attachPoint.position;
+                                        go.transform.SetParent(osr.attachPoint.transform);
+                                        go.transform.localRotation = Quaternion.identity;
+                                        go.GetComponent<Rigidbody>().isKinematic = true;
 
-										// #if UNITY_EDITOR
-										// //Debug.Log(go.name + " succesfully placed in " +sop.UniqueID);
-										// #endif
+                                        HowManyCouldntSpawn--;
+                                        spawned = true;
 
-										break;
-									}
-								}
+                                        // print(go.transform.name + " was spawned in " + sop.transform.name);
 
-								//for everything else (coffee maker, toilet paper holder, etc) just place it if there is nothing attached
-								else
-								{
-										go.transform.position = osr.attachPoint.position;
-										go.transform.SetParent(osr.attachPoint.transform);
-										go.transform.localRotation = Quaternion.identity;
-										go.GetComponent<Rigidbody>().isKinematic = true;
+                                        // #if UNITY_EDITOR
+                                        // //Debug.Log(go.name + " succesfully placed in " +sop.UniqueID);
+                                        // #endif
 
-										HowManyCouldntSpawn--;
-										spawned = true;
-										break;
-								}
-							}
-						}
+                                        break;
+                                    }
+                                }
 
-						targetReceptacleSpawnPoints = sop.ReturnMySpawnPoints(false);
+                                //for everything else (coffee maker, toilet paper holder, etc) just place it if there is nothing attached
+                                else
+                                {
+                                    go.transform.position = osr.attachPoint.position;
+                                    go.transform.SetParent(osr.attachPoint.transform);
+                                    go.transform.localRotation = Quaternion.identity;
+                                    go.GetComponent<Rigidbody>().isKinematic = true;
 
-						//first shuffle the list so it's raaaandom
-						targetReceptacleSpawnPoints.Shuffle();
-						
-						//try to spawn it, and if it succeeds great! if not uhhh...
+                                    HowManyCouldntSpawn--;
+                                    spawned = true;
+                                    break;
+                                }
+                            }
+                        }
 
-						#if UNITY_EDITOR
-						// var watch = System.Diagnostics.Stopwatch.StartNew();
-						#endif
+                        targetReceptacleSpawnPoints = sop.ReturnMySpawnPoints(false);
+                        //first shuffle the list so it's raaaandom
+                        targetReceptacleSpawnPoints.Shuffle();
 
-						if(spawner.PlaceObjectReceptacle(targetReceptacleSpawnPoints, go.GetComponent<SimObjPhysics>(), StaticPlacement, maxcount, 90, true)) //we spawn them stationary so things don't fall off of ledges
-						{
-							HowManyCouldntSpawn--;
-							spawned = true;
 
-							#if UNITY_EDITOR
-							// watch.Stop();
-							// var y = watch.ElapsedMilliseconds;
-						    //print( "SUCCESFULLY placing " + go.transform.name+ " in " + sop.transform.name);
-							#endif
+                        //try to spawn it, and if it succeeds great! if not uhhh...
+                        if (spawner.PlaceObjectReceptacle(targetReceptacleSpawnPoints, go.GetComponent<SimObjPhysics>(), StaticPlacement, 50, 90, true)) //we spawn them stationary so things don't fall off of ledges
+                        {
+                            HowManyCouldntSpawn--;
+                            spawned = true;
 
-							break;
-						} 
+                            break;
+                        }
 
-						#if UNITY_EDITOR
-						// watch.Stop();
-						// var elapsedMs = watch.ElapsedMilliseconds;
-						// print("time for trying, but FAILING, to place " + go.transform.name+ " in " + sop.transform.name + ": " + elapsedMs + " ms");
-						#endif
-					}
+                    }
 					
 					if (!spawned) {
 						#if UNITY_EDITOR

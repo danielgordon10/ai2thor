@@ -189,9 +189,9 @@ public class InstantiatePrefabTest : MonoBehaviour
                 (SimObjSecondaryProperty.ObjectSpecificReceptacle)) {
                 goodRsps.Add(p);
             }
-            if (goodRsps.Count == maxcount) {
-                break;
-            }
+            //if (goodRsps.Count == maxcount) {
+            //    break;
+            //}
         }
 
         if(rsps.Count == 0)

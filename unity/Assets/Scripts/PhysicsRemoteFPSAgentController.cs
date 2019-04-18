@@ -2217,8 +2217,10 @@ namespace UnityStandardAssets.Characters.FirstPerson
             }
 
             //default repeats if no value is passed in.
-            if(action.maxNumRepeats == 0)
-            action.maxNumRepeats = 5;
+            if (action.maxNumRepeats == 0)
+            {
+                action.maxNumRepeats = 5;
+            }
 
             PhysicsSceneManager script = GameObject.Find("PhysicsSceneManager").GetComponent<PhysicsSceneManager>();
 
