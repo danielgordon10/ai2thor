@@ -466,10 +466,10 @@ public class PhysicsSceneManager : MonoBehaviour
 					if (!spawned) {
 						#if UNITY_EDITOR
 						Debug.Log(go.name + " could not be spawned.");
-						#endif
-						// go.SetActive(false);
-					}
-				}
+                        #endif
+                        go.SetActive(false);
+                    }
+                }
 			}
 		} else {
 			throw new NotImplementedException();

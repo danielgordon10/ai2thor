@@ -650,7 +650,7 @@ public class ServerAction
 	public string action;
 	public int agentCount = 1;
 	public string quality;
-	public bool makeAgentsVisible = true;
+	public bool makeAgentsVisible = false;
 	public float timeScale = 1.0f;
 	public string objectType;
 	public int objectVariation;
