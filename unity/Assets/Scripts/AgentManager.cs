@@ -433,58 +433,65 @@ public class AgentManager : MonoBehaviour
 		form.AddField("metadata", Newtonsoft.Json.JsonConvert.SerializeObject(multiMeta));
 		form.AddField("token", robosimsClientToken);
 
-        #if !UNITY_WEBGL && !UNITY_EDITOR
-		if (synchronousHttp) {
-					IPAddress host = IPAddress.Parse(robosimsHost);
-					IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
-					Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        #if !UNITY_WEBGL
+        if (synchronousHttp)
+        {
+            IPAddress host = IPAddress.Parse(robosimsHost);
+            IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
+            Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-					sock.Connect(hostep);
-					byte[] rawData = form.data;
+            sock.Connect(hostep);
+            byte[] rawData = form.data;
 
-					string request = "POST /train HTTP/1.0\r\n" +
-					"Content-Length: " + rawData.Length.ToString() + "\r\n";
+            string request = "POST /train HTTP/1.0\r\n" +
+            "Content-Length: " + rawData.Length.ToString() + "\r\n";
 
-					foreach(KeyValuePair<string, string> entry in form.headers) {
-						request += entry.Key + ": " + entry.Value + "\r\n";
-					}
-					request += "\r\n";
+            foreach (KeyValuePair<string, string> entry in form.headers)
+            {
+                request += entry.Key + ": " + entry.Value + "\r\n";
+            }
+            request += "\r\n";
 
-					int sent = sock.Send(Encoding.ASCII.GetBytes(request));
-					sent = sock.Send(rawData);
-					byte[] buffer = new byte[4096];
-					int bytesReceived = 0;
-					string msg = "";
+            int sent = sock.Send(Encoding.ASCII.GetBytes(request));
+            sent = sock.Send(rawData);
+            byte[] buffer = new byte[4096];
+            int bytesReceived = 0;
+            string msg = "";
 
-					while (true) {
-						bytesReceived += sock.Receive(buffer, bytesReceived, buffer.Length - bytesReceived, SocketFlags.None);
-						int offset = Encoding.ASCII.GetString(buffer).IndexOf("\r\n\r\n");
-						if (offset > 0){
-							msg = Encoding.ASCII.GetString(buffer).Substring(offset + 4, bytesReceived - (offset - 4));
-							if (msg.Length > 8){
-								Debug.Log("Message: " + msg);
-								break;
-							}
-						}
-					}
-					//Debug.Log(msg);
+            while (true)
+            {
+                bytesReceived += sock.Receive(buffer, bytesReceived, buffer.Length - bytesReceived, SocketFlags.None);
+                int offset = Encoding.ASCII.GetString(buffer).IndexOf("\r\n\r\n");
+                if (offset > 0)
+                {
+                    msg = Encoding.ASCII.GetString(buffer).Substring(offset + 4, bytesReceived - (offset - 4));
+                    if (msg.Length > 8)
+                    {
+                        Debug.Log("Message: " + msg);
+                        break;
+                    }
+                }
+            }
+            //Debug.Log(msg);
 
-					sock.Close();
-					ProcessControlCommand(msg);
-		} else {
+            sock.Close();
+            ProcessControlCommand(msg);
+        }
+        else
+        {
 
-			using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
-			{
-				yield return www.SendWebRequest();
+            using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
+            {
+                yield return www.SendWebRequest();
 
-				if (www.isNetworkError || www.isHttpError)
-				{
-					Debug.Log("Error: " + www.error);
-					yield break;
-				}
-				ProcessControlCommand(www.downloadHandler.text);
-			}
-		}
+                if (www.isNetworkError || www.isHttpError)
+                {
+                    Debug.Log("Error: " + www.error);
+                    yield break;
+                }
+                ProcessControlCommand(www.downloadHandler.text);
+            }
+        }
         #endif
     }
 
@@ -574,6 +581,7 @@ public class ObjectMetadata
 	public Vector3 rotation;
 	public float cameraHorizon;
 	public bool visible;
+    public bool disabled;
 	public bool receptacle;
 	public int receptacleCount;
 	public bool toggleable;
@@ -608,7 +616,8 @@ public class ObjectMetadata
 		}
 		this.pickupable = simObj.IsPickupable;
 		this.objectId = simObj.UniqueID;
-		this.visible = simObj.IsVisible;
+        this.visible = simObj.IsVisible;
+        this.disabled = simObj.IsDisabled;
 
 
 
@@ -656,6 +665,13 @@ public class HandMetadata {
 	public Vector3 rotation;
 	public Vector3 localPosition;
 	public Vector3 localRotation;
+}
+
+[Serializable]
+public class ObjectRepeatCounts
+{
+    public string objectType;
+    public int maxNumRepeats;
 }
 
 [Serializable]
@@ -749,6 +765,7 @@ public class ServerAction
 	public bool uniquePickupableObjectTypes; // only allow one of each object type to be visible
 	public float removeProb;
 	public int maxNumRepeats;
+    public ObjectRepeatCounts[] numRepeats;
 	public bool randomizeObjectAppearance;
 	public bool renderImage = true;
 	public bool renderDepthImage;

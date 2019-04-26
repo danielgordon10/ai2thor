@@ -2238,7 +2238,7 @@ namespace UnityStandardAssets.Characters.FirstPerson {
 
             PhysicsSceneManager script = GameObject.Find("PhysicsSceneManager").GetComponent<PhysicsSceneManager>();
 
-            bool success = script.RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary);
+            bool success = script.RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary, action.numRepeats);
             physicsSceneManager.ResetUniqueIdToSimObjPhysics();
             actionFinished(success);
         }

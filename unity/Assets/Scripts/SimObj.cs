@@ -35,8 +35,22 @@ public class SimObj : MonoBehaviour, SimpleSimObj
 		}
 	}
 
+    public bool IsDisabled
+    {
+        get
+        {
+            return isDisabled;
+        }
 
-	public SimObjType Type = SimObjType.Undefined;
+        set
+        {
+            isDisabled = value;
+        }
+    }
+
+
+
+    public SimObjType Type = SimObjType.Undefined;
 	public SimObjManipType Manipulation = SimObjManipType.Inventory;
 	public static SimObjType[] OpenableTypes = new SimObjType[] { SimObjType.Fridge, SimObjType.Cabinet, SimObjType.Microwave, SimObjType.LightSwitch, SimObjType.Blinds, SimObjType.Book, SimObjType.Toilet };
 	public static SimObjType[] ImmobileTypes = new SimObjType[] { SimObjType.Chair, SimObjType.Toaster, SimObjType.CoffeeMachine, SimObjType.Television, SimObjType.StoveKnob };
@@ -49,6 +63,7 @@ public class SimObj : MonoBehaviour, SimpleSimObj
 	};
 	public bool UseCustomBounds = false;
 	public bool isVisible = false;
+    public bool isDisabled = false;
 	public bool UseWidthSearch = false;
 	public bool hasCollision = false;
 	public Transform BoundsTransform;
@@ -690,6 +705,7 @@ public interface SimpleSimObj {
 	bool IsPickupable {get; }
 	bool IsOpenable {get; }
 	bool IsVisible {get; set;}
+    bool IsDisabled { get; set;}
 	bool Open(); 
 	bool Close();
 	List<PivotSimObj> PivotSimObjs {get;}

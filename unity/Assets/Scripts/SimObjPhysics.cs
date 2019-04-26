@@ -44,6 +44,7 @@ public class SimObjPhysics : MonoBehaviour, SimpleSimObj
 
 	[Header("State information Bools here")]
 	public bool isVisible = false;
+    public bool isDisabled = false;
 	public bool isInteractable = false;
 	public bool isColliding = false;
 
@@ -113,18 +114,31 @@ public class SimObjPhysics : MonoBehaviour, SimpleSimObj
 	}
 
        public bool IsVisible
-       {
-               get
-               {
-                       return isVisible;
-               }
+    {
+        get
+        {
+            return isVisible;
+        }
 
-               set {
-                       isVisible = value;
-               }
-       }
+        set
+        {
+            isVisible = value;
+        }
+    }
+    public bool IsDisabled
+    {
+        get
+        {
+            return isDisabled;
+        }
 
-	public Bounds Bounds
+        set
+        {
+            isDisabled = value;
+        }
+    }
+
+    public Bounds Bounds
 	{
 		get
 		{

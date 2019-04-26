@@ -33,7 +33,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
 
 		private List<Renderer> capsuleRenderers = null;
 
-        private bool isVisible = true;
+        private bool isVisible = false;
         public bool IsVisible
         {
 			get { return isVisible; }
@@ -173,8 +173,13 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			init_position = transform.position;
 			init_rotation = transform.rotation;
 
-			//allowNodes = false;
-		}
+#if UNITY_EDITOR
+            this.enableImageSynthesis();
+#endif
+
+
+            //allowNodes = false;
+        }
 
 		public void actionFinished(bool success, System.Object actionReturn=null) 
 		{
@@ -560,7 +565,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
 
 		private void enableImageSynthesis() {
 			imageSynthesis = this.gameObject.GetComponentInChildren<ImageSynthesis> () as ImageSynthesis;
-			imageSynthesis.enabled = true;			
+            imageSynthesis.enabled = true;		
 		}
 
 		public abstract void PreprocessControlCommand(ServerAction controlCommand);

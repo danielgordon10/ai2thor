@@ -84,10 +84,12 @@ public class ImageSynthesis : MonoBehaviour {
 
 		if (!opticalFlowShader)
 			opticalFlowShader = Shader.Find("Hidden/OpticalFlow");
-
-		if (!depthShader)
-			depthShader = Shader.Find("Hidden/Depth");
-
+        #if UNITY_EDITOR
+            depthShader = Shader.Find("Hidden/DepthBW");
+        #else
+            if (!depthShader)
+    			depthShader = Shader.Find("Hidden/Depth");
+        #endif
 		if (!positionShader)
 			positionShader = Shader.Find("Hidden/World");
 		
@@ -97,8 +99,8 @@ public class ImageSynthesis : MonoBehaviour {
 		capturePasses[0].camera = GetComponent<Camera>();
 		for (int q = 1; q < capturePasses.Length; q++) {
 			capturePasses[q].camera = CreateHiddenCamera (capturePasses[q].name);
-		}
-		md5 = System.Security.Cryptography.MD5.Create();
+        }
+        md5 = System.Security.Cryptography.MD5.Create();
 
 		OnCameraChange();
 		OnSceneChange();
@@ -107,21 +109,21 @@ public class ImageSynthesis : MonoBehaviour {
 
 	void LateUpdate()
 	{
-		#if UNITY_EDITOR
+#if UNITY_EDITOR
 		if (DetectPotentialSceneChangeInEditor())
 			OnSceneChange();
-		#endif // UNITY_EDITOR
+#endif // UNITY_EDITOR
 
 		// @TODO: detect if camera properties actually changed
-		OnCameraChange();
+		// OnCameraChange();
 	}
 	
 	private Camera CreateHiddenCamera(string name)
 	{
 		var go = new GameObject (name, typeof (Camera));
-		#if !UNITY_EDITOR // Useful to be able to see these cameras in the editor
+#if !UNITY_EDITOR // Useful to be able to see these cameras in the editor
 		go.hideFlags = HideFlags.HideAndDontSave; 
-		#endif
+#endif
 		go.transform.parent = transform;
 
 		var newCamera = go.GetComponent<Camera>();
@@ -200,19 +202,30 @@ public class ImageSynthesis : MonoBehaviour {
 		//capturePasses [1].camera.farClipPlane = 100;
 		//SetupCameraWithReplacementShader(capturePasses[1].camera, uberReplacementShader, ReplacelementModes.DepthMultichannel);
 		SetupCameraWithPostShader(capturePasses[1].camera, depthMaterial, DepthTextureMode.Depth);
-		SetupCameraWithReplacementShader(capturePasses[2].camera, uberReplacementShader, ReplacelementModes.ObjectId);
-		SetupCameraWithReplacementShader(capturePasses[3].camera, uberReplacementShader, ReplacelementModes.CatergoryId);
+
+        SetupCameraWithReplacementShader(capturePasses[2].camera, uberReplacementShader, ReplacelementModes.ObjectId);
+        capturePasses[2].camera.targetDisplay = 2;
+
+        SetupCameraWithReplacementShader(capturePasses[3].camera, uberReplacementShader, ReplacelementModes.CatergoryId);
 
 
 		SetupCameraWithReplacementShader(capturePasses[4].camera, uberReplacementShader, ReplacelementModes.Normals);
-		//SetupCameraWithPostShader(capturePasses[5].camera, opticalFlowMaterial, DepthTextureMode.Depth | DepthTextureMode.MotionVectors);
+#if UNITY_EDITOR
+        for (int i = 0; i < capturePasses.Length; i++)
+        {
+            capturePasses[i].camera.targetDisplay = i;
+
+        }
+#endif
+
+        //SetupCameraWithPostShader(capturePasses[5].camera, opticalFlowMaterial, DepthTextureMode.Depth | DepthTextureMode.MotionVectors);
 
 
-		/*
+        /*
 		SetupCameraWithReplacementShader(capturePasses[6].camera, positionShader);
 		*/
 
-	}
+    }
 
 
 	public string MD5Hash(string input) {
@@ -443,7 +456,7 @@ public class ImageSynthesis : MonoBehaviour {
 		File.WriteAllBytes(filename, bytes);					
     }
 
-	#if UNITY_EDITOR
+#if UNITY_EDITOR
 	private GameObject lastSelectedGO;
 	private int lastSelectedGOLayer = -1;
 	private string lastSelectedGOTag = "unknown";
@@ -475,5 +488,5 @@ public class ImageSynthesis : MonoBehaviour {
 
 		return change;
 	}
-	#endif // UNITY_EDITOR
+#endif // UNITY_EDITOR
 }
