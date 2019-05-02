@@ -2436,12 +2436,22 @@ namespace UnityStandardAssets.Characters.FirstPerson {
 
             PhysicsSceneManager script = GameObject.Find("PhysicsSceneManager").GetComponent<PhysicsSceneManager>();
 
-            bool success = script.RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary, action.numRepeats);
+            bool success = script.RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary, action.numRepeats, action.minFreePerReceptacleType);
             physicsSceneManager.ResetUniqueIdToSimObjPhysics();
             actionFinished(success);
         }
 
-        public void PutObject(ServerAction action) {
+        public void RestoreSceneState(ServerAction action)
+        {
+            PhysicsSceneManager script = GameObject.Find("PhysicsSceneManager").GetComponent<PhysicsSceneManager>();
+            bool success = script.RestoreSceneObjects(action.objectPoses);
+            physicsSceneManager.ResetUniqueIdToSimObjPhysics();
+            actionFinished(success);
+        }
+
+
+        public void PutObject(ServerAction action)
+        {
             action.objectId = action.receptacleObjectId;
             action.receptacleObjectId = null;
             PlaceHeldObject(action);
@@ -2558,9 +2568,9 @@ namespace UnityStandardAssets.Characters.FirstPerson {
                 }
 
                 if (!HandObjectFoundInList) {
-#if UNITY_EDITOR
+//#if UNITY_EDITOR
                     Debug.Log("Object Type:" + handSOP.ObjType + " not found in PlacementRestrictions dictionary");
-#endif
+//#endif
                 }
             }
 
@@ -2581,7 +2591,7 @@ namespace UnityStandardAssets.Characters.FirstPerson {
             //ok we are holding something, time to try and place it
             InstantiatePrefabTest script = GameObject.Find("PhysicsSceneManager").GetComponent<InstantiatePrefabTest>();
             //set degreeIncrement to 90 for placing held objects to check for vertical angles
-            if (script.PlaceObjectReceptacle(targetReceptacle.ReturnMySpawnPoints(onlyPointsCloseToAgent), ItemInHand.GetComponent<SimObjPhysics>(), action.placeStationary, 100, 90, placeUpright)) {
+            if (script.PlaceObjectReceptacle(targetReceptacle.ReturnMySpawnPoints(onlyPointsCloseToAgent), ItemInHand.GetComponent<SimObjPhysics>(), action.placeStationary, 100, action.degreeIncrement, placeUpright, null)) {
                 ItemInHand = null;
                 actionFinished(true);
             } else {
@@ -4807,7 +4817,7 @@ namespace UnityStandardAssets.Characters.FirstPerson {
                         }
                     }
                 }
-                if (stepsTaken > 10000) {
+                if (stepsTaken > 1000000) {
                     errorMessage = "Too many steps taken in getReachablePoints.";
                     Debug.Log(errorMessage);
                     break;

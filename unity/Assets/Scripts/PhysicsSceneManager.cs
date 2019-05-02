@@ -16,8 +16,8 @@ public class PhysicsSceneManager : MonoBehaviour
 
 	public List<GameObject> RequiredObjects = new List<GameObject>();
 
-	//get references to the spawned Required objects after spawning them for the first time.
-	public List<GameObject> SpawnedObjects = new List<GameObject>();
+    //get references to the spawned Required objects after spawning them for the first time.
+    public List<GameObject> SpawnedObjects = new List<GameObject>();
 	public Dictionary<string, SimObjPhysics> UniqueIdToSimObjPhysics = new Dictionary<string, SimObjPhysics>();
 	public List<SimObjPhysics> ReceptaclesInScene = new List<SimObjPhysics>();
 
@@ -70,8 +70,8 @@ public class PhysicsSceneManager : MonoBehaviour
 	// Use this for initialization
 	void Start () 
 	{
-
-	}
+        //SpawnedObjects = new List<GameObject>();
+    }
 	
 	// Update is called once per frame
 	void Update () 
@@ -227,8 +227,7 @@ public class PhysicsSceneManager : MonoBehaviour
 	//set forceVisible to true for if you want objects to only spawn in immediately visible receptacles.
 	public bool RandomSpawnRequiredSceneObjects(ServerAction action)
 	{
-		
-		if(RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary, action.numRepeats))
+		if(RandomSpawnRequiredSceneObjects(action.randomSeed, action.forceVisible, action.maxNumRepeats, action.placeStationary, action.numRepeats, action.minFreePerReceptacleType))
 		{
 			return true;
 		}
@@ -240,8 +239,40 @@ public class PhysicsSceneManager : MonoBehaviour
 	//if no values passed in, default to system random based on ticks
 	public void RandomSpawnRequiredSceneObjects()
 	{
-		RandomSpawnRequiredSceneObjects(System.Environment.TickCount, false, 50, false, null);
+		RandomSpawnRequiredSceneObjects(System.Environment.TickCount, false, 50, false, null, null);
 	}
+
+    public bool RestoreSceneObjects(ObjectPose[] objectPoses)
+    {
+        Dictionary<SimObjType, SimObjPhysics> objectOfType = new Dictionary<SimObjType, SimObjPhysics>();
+        foreach (GameObject go in SpawnedObjects) {
+            SimObjPhysics sop = go.GetComponent<SimObjPhysics>();
+            objectOfType[sop.ObjType] = sop;
+            go.SetActive(false);
+            go.GetComponent<SimpleSimObj>().IsDisabled = true;
+        }
+        bool shouldFail = false;
+        for (int ii = 0; ii < objectPoses.Length; ii++)
+        {
+            ObjectPose objectPose = objectPoses[ii];
+            SimObjType objType = (SimObjType)System.Enum.Parse(typeof(SimObjType), objectPose.objectType);
+            if (!objectOfType.ContainsKey(objType))
+            {
+                Debug.Log("No object of type " + objectPose.objectType + " found in scene.");
+                shouldFail = true;
+            }
+            SimObjPhysics existingSOP = objectOfType[objType];
+            SimObjPhysics copy = Instantiate(existingSOP);
+            copy.name += "" + ii;
+            copy.UniqueID = existingSOP.UniqueID + "_copy_" + ii;
+            copy.uniqueID = copy.UniqueID;
+            copy.transform.position = objectPose.position;
+            copy.transform.eulerAngles = objectPose.rotation;
+            copy.gameObject.SetActive(true);
+            copy.GetComponent<SimpleSimObj>().IsDisabled = false;
+        }
+        return !shouldFail;
+    }
 
 	//place each object in the array of objects that should appear in this scene randomly in valid receptacles
 	//a seed of 0 is the default positions placed by hand(?)
@@ -250,7 +281,8 @@ public class PhysicsSceneManager : MonoBehaviour
 		bool SpawnOnlyOutside,
 		int maxcount,
 		bool StaticPlacement,
-        ObjectRepeatCounts [] numRepeats
+        ObjectTypeCount [] numRepeats,
+        ObjectTypeCount [] emptyReceptacleSpots
 	) {
 		#if UNITY_EDITOR
 		var Masterwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -293,43 +325,64 @@ public class PhysicsSceneManager : MonoBehaviour
             System.Random rnd = new System.Random(seed);
             List<SimObjPhysics> initialObjects = new List<SimObjPhysics>();
             List<GameObject> simObjectCopies = new List<GameObject>();
-            Dictionary<string, int> objectTypeCounts = new Dictionary<string, int>();
-            Dictionary<string, int> requestedNumRepeats = new Dictionary<string, int>();
+            Dictionary<SimObjType, int> objectTypeCounts = new Dictionary<SimObjType, int>();
+            Dictionary<SimObjType, int> requestedNumRepeats = new Dictionary<SimObjType, int>();
+            Dictionary<SimObjType, int> minFreePerReceptacleType = new Dictionary<SimObjType, int>();
+
             if (numRepeats == null)
             {
-                numRepeats = new ObjectRepeatCounts[0];
+                numRepeats = new ObjectTypeCount[0];
             }
-            foreach (ObjectRepeatCounts repeatCount in numRepeats)
+            foreach (ObjectTypeCount repeatCount in numRepeats)
             {
-                requestedNumRepeats[repeatCount.objectType] = repeatCount.maxNumRepeats;
-            }
 
+                try
+                {
+                    SimObjType objType = (SimObjType)System.Enum.Parse(typeof(SimObjType), repeatCount.objectType);
+                    requestedNumRepeats[objType] = repeatCount.count;
+
+                } catch (Exception e) { }
+            }
+            if (emptyReceptacleSpots == null)
+            {
+                emptyReceptacleSpots = new ObjectTypeCount[0];
+            }
+            foreach (ObjectTypeCount emptyReceptacleSpot in emptyReceptacleSpots)
+            {
+                try
+                {
+                    SimObjType objType = (SimObjType)System.Enum.Parse(typeof(SimObjType), emptyReceptacleSpot.objectType);
+                    minFreePerReceptacleType[objType] = emptyReceptacleSpot.count;
+
+                }
+                catch (Exception e) { }
+            }
 
 
             foreach (GameObject go in SpawnedObjects)
             {
                 SimObjPhysics gop = go.GetComponent<SimObjPhysics>();
-                string objectType = Enum.GetName(typeof(SimObjType), gop.ObjType);
-                if (!objectTypeCounts.ContainsKey(objectType))
+                if (!objectTypeCounts.ContainsKey(gop.ObjType))
                 {
-                    objectTypeCounts[objectType] = 0;
+                    objectTypeCounts[gop.ObjType] = 0;
                 }
-                if (!requestedNumRepeats.ContainsKey(objectType) ||
-                    (objectTypeCounts[objectType] < requestedNumRepeats[objectType])) {
-                    objectTypeCounts[objectType]++;
+                if (!requestedNumRepeats.ContainsKey(gop.ObjType) ||
+                    (objectTypeCounts[gop.ObjType] < requestedNumRepeats[gop.ObjType]))
+                {
+                    objectTypeCounts[gop.ObjType]++;
                     initialObjects.Add(gop);
                 }
+
             }
             foreach (SimObjPhysics gop in initialObjects)
             {
 
                 simObjectCopies.Add(gop.gameObject);
 
-                string objectType = Enum.GetName(typeof(SimObjType), gop.ObjType);
-                if (requestedNumRepeats.ContainsKey(objectType) &&
-                    requestedNumRepeats[objectType] > objectTypeCounts[objectType])
+                if (requestedNumRepeats.ContainsKey(gop.ObjType) &&
+                    requestedNumRepeats[gop.ObjType] > objectTypeCounts[gop.ObjType])
                 {
-                    int numExtra = requestedNumRepeats[objectType] - objectTypeCounts[objectType];
+                    int numExtra = requestedNumRepeats[gop.ObjType] - objectTypeCounts[gop.ObjType];
                     for (int j = 0; j < numExtra; j++)
                     {
                         // Add a copy of the item.
@@ -343,7 +396,7 @@ public class PhysicsSceneManager : MonoBehaviour
                     }
                 }
             }
-            simObjectCopies.Shuffle();
+            simObjectCopies.Shuffle_();
 
             foreach (GameObject go in simObjectCopies)
 			{
@@ -405,7 +458,6 @@ public class PhysicsSceneManager : MonoBehaviour
 			
 					//each sop here is a valid receptacle
 					bool spawned = false;
-
 					foreach(SimObjPhysics sop in ShuffleSimObjPhysicsDictList(AllowedToSpawnInAndExistsInScene))
 					{
 						//targetReceptacle = sop;
@@ -485,7 +537,7 @@ public class PhysicsSceneManager : MonoBehaviour
 						// var watch = System.Diagnostics.Stopwatch.StartNew();
 						#endif
 
-						if(spawner.PlaceObjectReceptacle(targetReceptacleSpawnPoints, go.GetComponent<SimObjPhysics>(), StaticPlacement, maxcount, 90, true)) //we spawn them stationary so things don't fall off of ledges
+						if(spawner.PlaceObjectReceptacle(targetReceptacleSpawnPoints, go.GetComponent<SimObjPhysics>(), StaticPlacement, maxcount, 90, true, minFreePerReceptacleType)) //we spawn them stationary so things don't fall off of ledges
 						{
 							HowManyCouldntSpawn--;
 							spawned = true;
@@ -506,9 +558,9 @@ public class PhysicsSceneManager : MonoBehaviour
 					}
 
                     if (!spawned) {
-#if UNITY_EDITOR
+//#if UNITY_EDITOR
 						Debug.Log(go.name + " could not be spawned.");
-#endif
+//#endif
                         //go.SetActive(false);
                         go.GetComponent<SimpleSimObj>().IsDisabled = true;
                         Destroy(go);

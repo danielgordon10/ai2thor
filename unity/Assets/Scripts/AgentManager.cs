@@ -456,24 +456,69 @@ public class AgentManager : MonoBehaviour
 
             int sent = sock.Send(Encoding.ASCII.GetBytes(request));
             sent = sock.Send(rawData);
-            byte[] buffer = new byte[4096];
-            int bytesReceived = 0;
-            string msg = "";
+            //byte[] buffer = new byte[4096];
+            StringBuilder sb;
+            string msg = null;
+            // Incoming data from the client.    
+            byte[] bytes;
+            int bufferSize = 1024;
 
-            while (true)
+            while (msg == null)
             {
-                bytesReceived += sock.Receive(buffer, bytesReceived, buffer.Length - bytesReceived, SocketFlags.None);
-                int offset = Encoding.ASCII.GetString(buffer).IndexOf("\r\n\r\n");
-                if (offset > 0)
+                Debug.Log("waiting for message");
+                sb = new StringBuilder();
+                while (true)
                 {
-                    msg = Encoding.ASCII.GetString(buffer).Substring(offset + 4, bytesReceived - (offset - 4));
-                    if (msg.Length > 8)
+                    bytes = new byte[bufferSize];
+                    int bytesRec = sock.Receive(bytes);
+                    sb.Append(Encoding.ASCII.GetString(bytes, 0, bytesRec));
+                    Debug.Log("got message of length " + bytesRec);
+                    if (bytesRec < bufferSize)
                     {
-                        Debug.Log("Message: " + msg);
                         break;
                     }
                 }
+                msg = sb.ToString();
+                Debug.Log("full message " + msg);
+                int offset = msg.IndexOf("\r\n\r\n");
+
+                if (offset > -1)
+                {
+                    msg = msg.Substring(offset + 4);
+
+                    if (msg.Length > 8)
+                    {
+                        Debug.Log("Message: " + msg);
+                    }
+                }
+                else
+                {
+                    msg = null;
+                }
             }
+
+
+
+            //    while (true)
+            //{
+            //    bytesReceived += sock.Receive(buffer, bytesReceived, buffer.Length - bytesReceived, SocketFlags.None);
+            //    int offset = Encoding.ASCII.GetString(buffer).IndexOf("\r\n\r\n");
+            //    if (offset > 0)
+            //    {
+            //        try
+            //        {
+            //            msg = Encoding.ASCII.GetString(buffer).Substring(offset + 4, bytesReceived - (offset - 4));
+            //        } catch
+            //        {
+            //            Debug.Log("issue");
+            //        }
+            //        if (msg.Length > 8)
+            //        {
+            //            Debug.Log("Message: " + msg);
+            //            break;
+            //        }
+            //    }
+            //}
             //Debug.Log(msg);
 
             sock.Close();
@@ -507,7 +552,13 @@ public class AgentManager : MonoBehaviour
 		ServerAction controlCommand = new ServerAction();
 		controlCommand.renderImage = this.defaultRenderImage;
 
-		JsonUtility.FromJsonOverwrite(msg, controlCommand);
+        try
+        {
+            JsonUtility.FromJsonOverwrite(msg, controlCommand);
+        }catch
+        {
+            Debug.Log("issue2");
+        }
 
 		this.currentSequenceId = controlCommand.sequenceId;
 		this.renderImage = controlCommand.renderImage;
@@ -670,10 +721,18 @@ public class HandMetadata {
 }
 
 [Serializable]
-public class ObjectRepeatCounts
+public class ObjectTypeCount
 {
     public string objectType;
-    public int maxNumRepeats;
+    public int count;
+}
+
+[Serializable]
+public class ObjectPose
+{
+    public string objectType;
+    public Vector3 position;
+    public Vector3 rotation;
 }
 
 [Serializable]
@@ -769,16 +828,19 @@ public class ServerAction
 	public bool uniquePickupableObjectTypes; // only allow one of each object type to be visible
 	public float removeProb;
 	public int maxNumRepeats;
-    public ObjectRepeatCounts[] numRepeats;
-	public bool randomizeObjectAppearance;
+    public ObjectTypeCount[] numRepeats;
+    public ObjectTypeCount[] minFreePerReceptacleType;
+    public bool randomizeObjectAppearance;
 	public bool renderImage = true;
 	public bool renderDepthImage;
 	public bool renderClassImage;
 	public bool renderObjectImage;
 	public bool renderNormalsImage;
 	public float cameraY;
+    public int degreeIncrement = 90;
 	public bool placeStationary = true; //when placing/spawning an object, do we spawn it stationary (kinematic true) or spawn and let physics resolve final position
 	public string ssao = "default";
+    public ObjectPose[] objectPoses;
 	public SimObjType ReceptableSimObjType()
 	{
 		if (string.IsNullOrEmpty(receptacleObjectType))

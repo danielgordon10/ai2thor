@@ -183,7 +183,7 @@ public class InstantiatePrefabTest : MonoBehaviour
     //The ReceptacleSpawnPoint list should be sorted based on what we are doing. If placing from the agent's hand, the list
     //should be sorted by distance to agent so the closest points are checked first. If used for Random Initial Spawn, it should
     //be randomized so that the random spawn is... random
-    public bool PlaceObjectReceptacle(List<ReceptacleSpawnPoint> rsps, SimObjPhysics sop, bool PlaceStationary, int maxcount, int degreeIncrement, bool AlwaysPlaceUpright)
+    public bool PlaceObjectReceptacle(List<ReceptacleSpawnPoint> rsps, SimObjPhysics sop, bool PlaceStationary, int maxcount, int degreeIncrement, bool AlwaysPlaceUpright, Dictionary<SimObjType, int> minFreePerReceptacleType)
     {
         
         if(rsps == null)
@@ -204,8 +204,19 @@ public class InstantiatePrefabTest : MonoBehaviour
             //    break;
             //}
         }
-
-        if(rsps.Count == 0)
+        if (rsps.Count == 0)
+        {
+            return false;
+        }
+        SimObjType parentType = rsps[0].ParentSimObjPhys.ObjType;
+        if (minFreePerReceptacleType != null && minFreePerReceptacleType.ContainsKey(parentType)) {
+            Debug.Log("Limiting " + parentType);
+        }
+        else
+        {
+            Debug.Log("Placing in " + parentType);
+        }
+        if (minFreePerReceptacleType != null && minFreePerReceptacleType.ContainsKey(parentType) && goodRsps.Count < minFreePerReceptacleType[parentType])
         {
             return false;
         }

@@ -599,7 +599,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			catch (Exception e)
 			{
 				Debug.LogError("caught error with invoke");
-				Debug.LogError(e);
+				Debug.LogError(e.StackTrace);
 
 				errorMessage += e.ToString();
 				actionFinished(false);
