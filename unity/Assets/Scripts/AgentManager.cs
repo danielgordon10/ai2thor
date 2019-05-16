@@ -24,7 +24,6 @@ public class AgentManager : MonoBehaviour
 	private Rect readPixelsRect;
 	private int currentSequenceId;
 	private int activeAgentId;
-	private bool defaultRenderImage = true;
 	private bool renderImage = true;
 	private bool renderDepthImage;
 	private bool renderClassImage;
@@ -99,7 +98,6 @@ public class AgentManager : MonoBehaviour
 	{
 		primaryAgent.ProcessControlCommand (action);
 		primaryAgent.IsVisible = action.makeAgentsVisible;
-		this.defaultRenderImage = action.renderImage;
 		this.renderClassImage = action.renderClassImage;
 		this.renderDepthImage = action.renderDepthImage;
 		this.renderNormalsImage = action.renderNormalsImage;
@@ -140,7 +138,7 @@ public class AgentManager : MonoBehaviour
 		gameObject.transform.eulerAngles = action.rotation;
 		gameObject.transform.position = action.position;
 		readyToEmit = true;
-	}
+	} 
 
 	public void UpdateThirdPartyCamera(ServerAction action) {
 		if (action.thirdPartyCameraId <= thirdPartyCameras.Count) {
@@ -383,61 +381,70 @@ public class AgentManager : MonoBehaviour
 
 		frameCounter += 1;
 
+        bool shouldRender = this.renderImage; //&& serverSideScreenshot;
 
-		// we should only read the screen buffer after rendering is complete
-		yield return new WaitForEndOfFrame();
-		if (synchronousHttp) {
-			// must wait an additional frame when in synchronous mode otherwise the frame lags
+		if (shouldRender) {
+			// we should only read the screen buffer after rendering is complete
 			yield return new WaitForEndOfFrame();
+			if (synchronousHttp) {
+				// must wait an additional frame when in synchronous mode otherwise the frame lags
+				yield return new WaitForEndOfFrame();
+			}
 		}
 
 		WWWForm form = new WWWForm();
 
-		MultiAgentMetadata multiMeta = new MultiAgentMetadata ();
-		multiMeta.agents = new MetadataWrapper[this.agents.Count];
+        MultiAgentMetadata multiMeta = new MultiAgentMetadata ();
+        multiMeta.agents = new MetadataWrapper[this.agents.Count];
+        multiMeta.activeAgentId = this.activeAgentId;
+        multiMeta.sequenceId = this.currentSequenceId;
+
 		ThirdPartyCameraMetadata[] cameraMetadata = new ThirdPartyCameraMetadata[this.thirdPartyCameras.Count];
-		multiMeta.activeAgentId = this.activeAgentId;
-		multiMeta.sequenceId = this.currentSequenceId;
-		RenderTexture currentTexture = RenderTexture.active;
+		RenderTexture currentTexture = null;
+        if (shouldRender) {
+            currentTexture = RenderTexture.active;
+            for (int i = 0; i < this.thirdPartyCameras.Count; i++) {
+                ThirdPartyCameraMetadata cMetadata = new ThirdPartyCameraMetadata();
+                Camera camera = thirdPartyCameras.ToArray()[i];
+                cMetadata.thirdPartyCameraId = i;
+                cMetadata.position = camera.gameObject.transform.position;
+                cMetadata.rotation = camera.gameObject.transform.eulerAngles;
+                cameraMetadata[i] = cMetadata;
+                ImageSynthesis imageSynthesis = camera.gameObject.GetComponentInChildren<ImageSynthesis> () as ImageSynthesis;
+                addThirdPartyCameraImageForm (form, camera);
+                addImageSynthesisImageForm(form, imageSynthesis, this.renderDepthImage, "_depth", "image_thirdParty_depth");
+                addImageSynthesisImageForm(form, imageSynthesis, this.renderNormalsImage, "_normals", "image_thirdParty_normals");
+                addImageSynthesisImageForm(form, imageSynthesis, this.renderObjectImage, "_id", "image_thirdParty_image_ids");
+                addImageSynthesisImageForm(form, imageSynthesis, this.renderClassImage, "_class", "image_thirdParty_classes");
+            }
+        }
 
-		for (int i = 0; i < this.thirdPartyCameras.Count; i++) {
-			ThirdPartyCameraMetadata cMetadata = new ThirdPartyCameraMetadata();
-			Camera camera = thirdPartyCameras.ToArray()[i];
-			cMetadata.thirdPartyCameraId = i;
-			cMetadata.position = camera.gameObject.transform.position;
-			cMetadata.rotation = camera.gameObject.transform.eulerAngles;
-			cameraMetadata[i] = cMetadata;
-			ImageSynthesis imageSynthesis = camera.gameObject.GetComponentInChildren<ImageSynthesis> () as ImageSynthesis;
-			addThirdPartyCameraImageForm (form, camera);
-			addImageSynthesisImageForm(form, imageSynthesis, this.renderDepthImage, "_depth", "image_thirdParty_depth");
-			addImageSynthesisImageForm(form, imageSynthesis, this.renderNormalsImage, "_normals", "image_thirdParty_normals");
-			addImageSynthesisImageForm(form, imageSynthesis, this.renderObjectImage, "_id", "image_thirdParty_image_ids");
-			addImageSynthesisImageForm(form, imageSynthesis, this.renderClassImage, "_class", "image_thirdParty_classes");
-		}
+        for (int i = 0; i < this.agents.Count; i++) {
+            BaseFPSAgentController agent = this.agents.ToArray () [i];
+            MetadataWrapper metadata = agent.generateMetadataWrapper ();
+            metadata.agentId = i;
+            // we don't need to render the agent's camera for the first agent
+            if (shouldRender) {
+                addImageForm (form, agent);
+                addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderDepthImage, "_depth", "image_depth");
+                addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderNormalsImage, "_normals", "image_normals");
+                addObjectImageForm (form, agent, ref metadata);
+                addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderClassImage, "_class", "image_classes");
+                metadata.thirdPartyCameras = cameraMetadata;
+            }
+            multiMeta.agents [i] = metadata;
+        }
 
-		for (int i = 0; i < this.agents.Count; i++) {
-			BaseFPSAgentController agent = this.agents.ToArray () [i];
-			MetadataWrapper metadata = agent.generateMetadataWrapper ();
-			metadata.agentId = i;
-			// we don't need to render the agent's camera for the first agent
-			addImageForm (form, agent);
-			addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderDepthImage, "_depth", "image_depth");
-			addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderNormalsImage, "_normals", "image_normals");
-			addObjectImageForm (form, agent, ref metadata);
-			addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderClassImage, "_class", "image_classes");
-			metadata.thirdPartyCameras = cameraMetadata;
-			multiMeta.agents [i] = metadata;
-		}
+        if (shouldRender) {
+            RenderTexture.active = currentTexture;
+        }
 
-		RenderTexture.active = currentTexture;
-
-		//form.AddField("metadata", JsonUtility.ToJson(multiMeta));
-		form.AddField("metadata", Newtonsoft.Json.JsonConvert.SerializeObject(multiMeta));
-		form.AddField("token", robosimsClientToken);
+        //form.AddField("metadata", JsonUtility.ToJson(multiMeta));
+        form.AddField("metadata", Newtonsoft.Json.JsonConvert.SerializeObject(multiMeta));
+        form.AddField("token", robosimsClientToken);
 
         #if !UNITY_WEBGL
-        if (synchronousHttp)
-        {
+		if (synchronousHttp) {
             IPAddress host = IPAddress.Parse(robosimsHost);
             IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
             Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -457,20 +464,20 @@ public class AgentManager : MonoBehaviour
             int sent = sock.Send(Encoding.ASCII.GetBytes(request));
             sent = sock.Send(rawData);
             //byte[] buffer = new byte[4096];
-            StringBuilder sb;
+            StringBuilder sb = new StringBuilder();
             string msg = null;
             // Incoming data from the client.    
             byte[] bytes;
-            int bufferSize = 1024;
+            int bufferSize = 4096;
+            ServerAction controlCommand = new ServerAction();
 
             while (msg == null)
             {
                 Debug.Log("waiting for message");
-                sb = new StringBuilder();
                 while (true)
                 {
                     bytes = new byte[bufferSize];
-                    int bytesRec = sock.Receive(bytes);
+                    int bytesRec = sock.Receive(bytes, bufferSize, SocketFlags.None);
                     sb.Append(Encoding.ASCII.GetString(bytes, 0, bytesRec));
                     Debug.Log("got message of length " + bytesRec);
                     if (bytesRec < bufferSize)
@@ -489,9 +496,21 @@ public class AgentManager : MonoBehaviour
                     if (msg.Length > 8)
                     {
                         Debug.Log("Message: " + msg);
+                    } else
+                    {
+                        msg = null;
                     }
                 }
                 else
+                {
+                    msg = null;
+                }
+                try
+                {
+                    controlCommand = new ServerAction();
+                    JsonUtility.FromJsonOverwrite(msg, controlCommand);
+                }
+                catch
                 {
                     msg = null;
                 }
@@ -519,14 +538,10 @@ public class AgentManager : MonoBehaviour
             //        }
             //    }
             //}
-            //Debug.Log(msg);
 
             sock.Close();
-            ProcessControlCommand(msg);
-        }
-        else
-        {
-
+            ProcessControlCommand(controlCommand);
+		} else {
             using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
             {
                 yield return www.SendWebRequest();
@@ -546,20 +561,20 @@ public class AgentManager : MonoBehaviour
 		return this.agents.ToArray () [activeAgentId];
 	}
 
-	private void ProcessControlCommand(string msg)
-	{
-
-		ServerAction controlCommand = new ServerAction();
-		controlCommand.renderImage = this.defaultRenderImage;
-
+    private void ProcessControlCommand(string msg)
+    {
+        ServerAction controlCommand = new ServerAction();
         try
         {
             JsonUtility.FromJsonOverwrite(msg, controlCommand);
-        }catch
-        {
-            Debug.Log("issue2");
-        }
+            ProcessControlCommand(controlCommand);
 
+        }
+        catch { }
+    }
+
+    private void ProcessControlCommand(ServerAction controlCommand)
+	{
 		this.currentSequenceId = controlCommand.sequenceId;
 		this.renderImage = controlCommand.renderImage;
 		activeAgentId = controlCommand.agentId;
@@ -637,11 +652,38 @@ public class ObjectMetadata
     public bool disabled;
 	public bool receptacle;
 	public int receptacleCount;
-	public bool toggleable;
+	///
+	//note: some objects are not themselves toggleable, because they must be toggled on/off via another sim object (stove knob -> stove burner)
+	public bool toggleable;//is this object able to be toggled on/off directly?
+	
+	//note some objects can still return the istoggle value even if they cannot directly be toggled on off (stove burner -> stove knob)
+	public bool istoggled;//is this object currently on or off? true is on
+	///
+	public bool breakable;
+	public bool isbroken;//is this object broken?
+	///
+	public bool fillable;//objects filled with liquids
+	public bool isfilled;//is this object filled with some liquid? - similar to 'depletable' but this is for liquids
+	///
+	public bool dirtyable;//can toggle object state dirty/clean
+	public bool isdirty;//is this object in a dirty or clean state?
+	///
+	public bool depletable;//for objects that can be emptied or depleted (toilet paper, paper towels, tissue box etc) - specifically not for liquids
+	public bool isdepleted; 
+	///
+	public bool cookable;//object can be cooked state?
+	public bool iscooked;//is it cooked right now?
+	///
+	public bool sliceable;//can this be sliced in some way?
+	public bool issliced;//currently sliced?
+	///
 	public bool openable;
-	public bool pickupable;
 	public bool isopen;
-	public bool istoggled;
+	///
+	public bool pickupable;
+	public bool ispickedup;//if the pickupable object is actively being held by the agent
+	///
+
 	public string[] receptacleObjectIds;
 	public PivotSimObj[] pivotSimObjs;
 	public float distance;
@@ -730,9 +772,16 @@ public class ObjectTypeCount
 [Serializable]
 public class ObjectPose
 {
-    public string objectType;
+    public string objectName;
     public Vector3 position;
     public Vector3 rotation;
+}
+
+[Serializable]
+public class ObjectToggle
+{
+    public string objectType;
+    public bool isOn;
 }
 
 [Serializable]
@@ -841,6 +890,8 @@ public class ServerAction
 	public bool placeStationary = true; //when placing/spawning an object, do we spawn it stationary (kinematic true) or spawn and let physics resolve final position
 	public string ssao = "default";
     public ObjectPose[] objectPoses;
+    public ObjectToggle[] objectToggles;
+	public string fillLiquid; //string to indicate what kind of liquid this object should be filled with. Water, Coffee, Wine etc.
 	public SimObjType ReceptableSimObjType()
 	{
 		if (string.IsNullOrEmpty(receptacleObjectType))

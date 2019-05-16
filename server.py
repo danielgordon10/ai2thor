@@ -108,6 +108,7 @@ class Event(object):
         self.frame = None
         self.depth_frame = None
         self.normals_frame = None
+        self.flow_frame = None
 
         self.color_to_object_id = {}
         self.object_id_to_color = {}
@@ -128,6 +129,7 @@ class Event(object):
         self.third_party_instance_segmentation_frames = []
         self.third_party_depth_frames = []
         self.third_party_normals_frames = []
+        self.third_party_flow_frames = []
 
     @property
     def image_data(self):
@@ -192,7 +194,7 @@ class Event(object):
     def _image_depth(self, image_depth_data):
         image_depth = read_buffer_image(image_depth_data, self.screen_width, self.screen_height).astype(np.float32)
         max_spots = image_depth[:,:,0] == 255
-        image_depth_out = image_depth[:,:,0] + image_depth[:,:,1] / 256 + image_depth[:,:,2] / 256 ** 2
+        image_depth_out = image_depth[:,:,0] + image_depth[:,:,1] / np.float32(256) + image_depth[:,:,2] / np.float32(256 ** 2)
         image_depth_out[max_spots] = 256
         image_depth_out *= 10.0 / 256.0 * 1000  # converts to meters then to mm
         image_depth_out[image_depth_out > MAX_DEPTH] = MAX_DEPTH
@@ -211,6 +213,12 @@ class Event(object):
 
     def add_image_normals(self, image_normals_data):
         self.normals_frame = read_buffer_image(image_normals_data, self.screen_width, self.screen_height)
+
+    def add_third_party_image_flow(self, flow_data):
+        self.third_party_flow_frames.append(read_buffer_image(flow_data, self.screen_width, self.screen_height))
+
+    def add_image_flow(self, image_flow_data):
+        self.flow_frame = read_buffer_image(image_flow_data, self.screen_width, self.screen_height)
 
     def add_third_party_camera_image(self, third_party_image_data):
         self.third_party_camera_frames.append(read_buffer_image(third_party_image_data, self.screen_width, self.screen_height))
@@ -381,7 +389,8 @@ class Server(object):
                     image_depth=e.add_image_depth,
                     image_ids=e.add_image_ids,
                     image_classes=e.add_image_classes,
-                    image_normals=e.add_image_normals
+                    image_normals=e.add_image_normals,
+                    image_flow=e.add_image_flow
                 )
 
                 for key in image_mapping.keys():
@@ -393,13 +402,15 @@ class Server(object):
                     image_thirdParty_depth=e.add_third_party_image_depth,
                     image_thirdParty_image_ids=e.add_third_party_image_ids,
                     image_thirdParty_classes=e.add_third_party_image_classes,
-                    image_thirdParty_normals=e.add_third_party_image_normals
+                    image_thirdParty_normals=e.add_third_party_image_normals,
+                    image_thirdParty_flow=e.add_third_party_image_flow
                 )
 
-                for ti, t in enumerate(a['thirdPartyCameras']):
-                    for key in third_party_image_mapping.keys():
-                        if key in form.files:
-                            third_party_image_mapping[key](form.files[key][ti])
+                if a['thirdPartyCameras'] is not None:
+                    for ti, t in enumerate(a['thirdPartyCameras']):
+                        for key in third_party_image_mapping.keys():
+                            if key in form.files:
+                                third_party_image_mapping[key](form.files[key][ti])
 
 
                 events.append(e)

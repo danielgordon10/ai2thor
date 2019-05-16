@@ -263,8 +263,6 @@ public class ImageSynthesis : MonoBehaviour {
 		colorIds = new Dictionary<Color, string> ();
 		var mpb = new MaterialPropertyBlock();
 
-
-
 		foreach (var r in renderers)
 		{
 			// var layer = r.gameObject.layer;

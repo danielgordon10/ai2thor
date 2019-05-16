@@ -99,12 +99,14 @@ public class PhysicsSceneManager : MonoBehaviour
 		}
 	}
 
-	public void ResetUniqueIdToSimObjPhysics() {
-            UniqueIdToSimObjPhysics.Clear();
-            foreach (SimObjPhysics so in GameObject.FindObjectsOfType<SimObjPhysics>()) {
-                UniqueIdToSimObjPhysics[so.UniqueID] = so;
-            }
+    public void ResetUniqueIdToSimObjPhysics()
+    {
+        UniqueIdToSimObjPhysics.Clear();
+        foreach (SimObjPhysics so in GameObject.FindObjectsOfType<SimObjPhysics>())
+        {
+            UniqueIdToSimObjPhysics[so.UniqueID] = so;
         }
+    }
 
     public void GatherSimObjPhysInScene()
 	{
@@ -213,7 +215,7 @@ public class PhysicsSceneManager : MonoBehaviour
 		UniqueIdToSimObjPhysics[sop.UniqueID] = sop;
 	}
 
-	public void RemoveFormSpawnedObjects(SimObjPhysics sop)
+	public void RemoveFromSpawnedObjects(SimObjPhysics sop)
 	{
 		SpawnedObjects.Remove(sop.gameObject);
 	}
@@ -242,36 +244,80 @@ public class PhysicsSceneManager : MonoBehaviour
 		RandomSpawnRequiredSceneObjects(System.Environment.TickCount, false, 50, false, null, null);
 	}
 
-    public bool RestoreSceneObjects(ObjectPose[] objectPoses)
+    public bool SetSceneState(ObjectPose[] objectPoses, ObjectToggle[] objectToggles)
     {
-        Dictionary<SimObjType, SimObjPhysics> objectOfType = new Dictionary<SimObjType, SimObjPhysics>();
-        foreach (GameObject go in SpawnedObjects) {
-            SimObjPhysics sop = go.GetComponent<SimObjPhysics>();
-            objectOfType[sop.ObjType] = sop;
-            go.SetActive(false);
-            go.GetComponent<SimpleSimObj>().IsDisabled = true;
-        }
+        SetupScene();
         bool shouldFail = false;
-        for (int ii = 0; ii < objectPoses.Length; ii++)
+        if (objectPoses != null && objectPoses.Length > 0)
         {
-            ObjectPose objectPose = objectPoses[ii];
-            SimObjType objType = (SimObjType)System.Enum.Parse(typeof(SimObjType), objectPose.objectType);
-            if (!objectOfType.ContainsKey(objType))
+            // Perform object state sets
+            //Dictionary<SimObjType, SimObjPhysics> objectOfType = new Dictionary<SimObjType, SimObjPhysics>();
+            SimObjPhysics[] sceneObjects = FindObjectsOfType<SimObjPhysics>();
+            Dictionary<string, SimObjPhysics> nameToObject = new Dictionary<string, SimObjPhysics>();
+            foreach (SimObjPhysics sop in sceneObjects)
             {
-                Debug.Log("No object of type " + objectPose.objectType + " found in scene.");
-                shouldFail = true;
+                if (sop.IsPickupable)
+                {
+                    //objectOfType[sop.ObjType] = sop;
+                    sop.gameObject.SetActive(false);
+                    sop.gameObject.GetComponent<SimpleSimObj>().IsDisabled = true;
+                    nameToObject[sop.name] = sop;
+                }
             }
-            SimObjPhysics existingSOP = objectOfType[objType];
-            SimObjPhysics copy = Instantiate(existingSOP);
-            copy.name += "" + ii;
-            copy.UniqueID = existingSOP.UniqueID + "_copy_" + ii;
-            copy.uniqueID = copy.UniqueID;
-            copy.transform.position = objectPose.position;
-            copy.transform.eulerAngles = objectPose.rotation;
-            copy.gameObject.SetActive(true);
-            copy.GetComponent<SimpleSimObj>().IsDisabled = false;
+            for (int ii = 0; ii < objectPoses.Length; ii++)
+            {
+                ObjectPose objectPose = objectPoses[ii];
+                if (!nameToObject.ContainsKey(objectPose.objectName)) {
+                    Debug.Log("No object of name " + objectPose.objectName + " found in scene.");
+                    shouldFail = true;
+                    continue;
+                }
+                SimObjPhysics obj = nameToObject[objectPose.objectName];
+                SimObjPhysics existingSOP = obj.GetComponent<SimObjPhysics>();
+                SimObjPhysics copy = Instantiate(existingSOP);
+                copy.name += "_random_copy_" + ii;
+                copy.UniqueID = existingSOP.UniqueID + "_copy_" + ii;
+                copy.uniqueID = copy.UniqueID;
+                copy.transform.position = objectPose.position;
+                copy.transform.eulerAngles = objectPose.rotation;
+                copy.gameObject.SetActive(true);
+                copy.GetComponent<SimpleSimObj>().IsDisabled = false;
+            }
         }
+        if (objectToggles != null && objectToggles.Length > 0)
+        {
+            // Perform object toggle state sets.
+            SimObjPhysics[] simObjs = GameObject.FindObjectsOfType(typeof(SimObjPhysics)) as SimObjPhysics[];
+            Dictionary<SimObjType, bool> toggles = new Dictionary<SimObjType, bool>();
+            foreach(ObjectToggle objectToggle in objectToggles)
+            {
+                SimObjType objType = (SimObjType)System.Enum.Parse(typeof(SimObjType), objectToggle.objectType);
+                toggles[objType] = objectToggle.isOn;
+            }
+            PhysicsRemoteFPSAgentController fpsController = GameObject.Find("FPSController").GetComponent<PhysicsRemoteFPSAgentController>();
+            foreach (SimObjPhysics sop in simObjs)
+            {
+                if (toggles.ContainsKey(sop.ObjType))
+                {
+                    bool success;
+                    if (toggles[sop.ObjType])
+                    {
+                        success = fpsController.ToggleObject(sop, true, true);
+                    } else
+                    {
+                        success = fpsController.ToggleObject(sop, false, true);
+                    }
+                    if (!success)
+                    {
+                        shouldFail = true;
+                    }
+                }
+            }
+        }
+
+        SetupScene();
         return !shouldFail;
+
     }
 
 	//place each object in the array of objects that should appear in this scene randomly in valid receptacles
@@ -323,9 +369,12 @@ public class PhysicsSceneManager : MonoBehaviour
             //for each object in RequiredObjects, start a list of what objects it's allowed 
             //to spawn in by checking the PlacementRestrictions dictionary
             System.Random rnd = new System.Random(seed);
-            List<SimObjPhysics> initialObjects = new List<SimObjPhysics>();
+            // List<SimObjPhysics> initialObjects = new List<SimObjPhysics>();
+            Dictionary<SimObjType, List<SimObjPhysics>> typeToObjectList = new Dictionary<SimObjType, List<SimObjPhysics>>();
+
             List<GameObject> simObjectCopies = new List<GameObject>();
-            Dictionary<SimObjType, int> objectTypeCounts = new Dictionary<SimObjType, int>();
+            List<GameObject> unduplicatedSimObjects = new List<GameObject>();
+            //Dictionary<SimObjType, int> objectTypeCounts = new Dictionary<SimObjType, int>();
             Dictionary<SimObjType, int> requestedNumRepeats = new Dictionary<SimObjType, int>();
             Dictionary<SimObjType, int> minFreePerReceptacleType = new Dictionary<SimObjType, int>();
 
@@ -362,41 +411,52 @@ public class PhysicsSceneManager : MonoBehaviour
             foreach (GameObject go in SpawnedObjects)
             {
                 SimObjPhysics gop = go.GetComponent<SimObjPhysics>();
-                if (!objectTypeCounts.ContainsKey(gop.ObjType))
+                if (!typeToObjectList.ContainsKey(gop.ObjType))
                 {
-                    objectTypeCounts[gop.ObjType] = 0;
+                    typeToObjectList[gop.ObjType] = new List<SimObjPhysics>();
                 }
                 if (!requestedNumRepeats.ContainsKey(gop.ObjType) ||
-                    (objectTypeCounts[gop.ObjType] < requestedNumRepeats[gop.ObjType]))
+                    (typeToObjectList[gop.ObjType].Count < requestedNumRepeats[gop.ObjType]))
                 {
-                    objectTypeCounts[gop.ObjType]++;
-                    initialObjects.Add(gop);
+                    typeToObjectList[gop.ObjType].Add(gop);
                 }
 
             }
-            foreach (SimObjPhysics gop in initialObjects)
+
+
+            foreach (SimObjType sopType in typeToObjectList.Keys)
             {
 
-                simObjectCopies.Add(gop.gameObject);
-
-                if (requestedNumRepeats.ContainsKey(gop.ObjType) &&
-                    requestedNumRepeats[gop.ObjType] > objectTypeCounts[gop.ObjType])
+                if (requestedNumRepeats.ContainsKey(sopType) &&
+                    requestedNumRepeats[sopType] > typeToObjectList[sopType].Count)
                 {
-                    int numExtra = requestedNumRepeats[gop.ObjType] - objectTypeCounts[gop.ObjType];
+                    foreach (SimObjPhysics gop in typeToObjectList[sopType])
+                    {
+                        simObjectCopies.Add(gop.gameObject);
+                    }
+                    int numExtra = requestedNumRepeats[sopType] - typeToObjectList[sopType].Count;
                     for (int j = 0; j < numExtra; j++)
                     {
+                    
                         // Add a copy of the item.
+                        SimObjPhysics gop = typeToObjectList[sopType][rnd.Next(typeToObjectList[sopType].Count)];
                         SimObjPhysics copy = Instantiate(gop);
-                        copy.name += "" + j;
+                        copy.name += "_random_copy_" + j;
                         copy.UniqueID = gop.UniqueID + "_copy_" + j;
                         copy.uniqueID = copy.UniqueID;
                         //Randomizer randomizer = (copy.gameObject.GetComponentInChildren<Randomizer>() as Randomizer);
                         //randomizer.Randomize(rnd.Next(0, 2147483647));
                         simObjectCopies.Add(copy.gameObject);
                     }
+                } else
+                {
+                    foreach (SimObjPhysics gop in typeToObjectList[sopType]) {
+                        unduplicatedSimObjects.Add(gop.gameObject);
+                    }
                 }
             }
-            simObjectCopies.Shuffle_();
+            unduplicatedSimObjects.Shuffle_();
+            simObjectCopies.AddRange(unduplicatedSimObjects);
 
             foreach (GameObject go in simObjectCopies)
 			{
