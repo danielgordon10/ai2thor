@@ -132,8 +132,6 @@ public class SimObjPhysics : MonoBehaviour, SimpleSimObj
 			uniqueID = value;
 		}
 	}
-<<<<<<< HEAD
-
        public bool IsVisible
     {
         get
@@ -160,9 +158,6 @@ public class SimObjPhysics : MonoBehaviour, SimpleSimObj
     }
 
     public Bounds Bounds
-=======
-	public Bounds Bounds
->>>>>>> d79757ee69d3f343b49f5806c869c8a11db9fd15
 	{
 		get
 		{

@@ -173,20 +173,15 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			init_position = transform.position;
 			init_rotation = transform.rotation;
 
-<<<<<<< HEAD
 #if UNITY_EDITOR
             this.enableImageSynthesis();
 #endif
 
 
-            //allowNodes = false;
-        }
-=======
 			agentManager = GameObject.Find("PhysicsSceneManager").GetComponentInChildren<AgentManager>();
 
 			//allowNodes = false;
 		}
->>>>>>> d79757ee69d3f343b49f5806c869c8a11db9fd15
 
 		public void actionFinished(bool success, System.Object actionReturn=null) 
 		{
