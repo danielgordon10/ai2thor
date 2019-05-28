@@ -99,7 +99,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
 		protected ServerActionErrorCode errorCode;
 		public bool actionComplete;
 		public System.Object actionReturn;
-
+        public string [] selectedObjectIds;
 
 		// Vector3 m_OriginalCameraPosition;
 
@@ -448,6 +448,7 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			metaMessage.lastAction = lastAction;
 			metaMessage.lastActionSuccess = lastActionSuccess;
 			metaMessage.errorMessage = errorMessage;
+            metaMessage.selectedObjectIds = this.selectedObjectIds;
 
 			if (errorCode != ServerActionErrorCode.Undefined) 
 			{
@@ -849,9 +850,45 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			}
 		}
 
-		//public virtual void P(ServerAction action)//use
-		//{
 
-		//}
-	}
+        public virtual void ObjectAtPoint(ServerAction controlCommand)
+        {
+            int ss = 0;
+            string[] selectedObjects = new string[controlCommand.selectedPoints.Length];
+            foreach (ScreenPoint selectedPoint in controlCommand.selectedPoints)
+            {
+                Vector3 selectedVec = new Vector3(selectedPoint.x, Screen.height - selectedPoint.y - 1, 0);
+                Ray ray = m_Camera.ScreenPointToRay(selectedVec);
+                RaycastHit[] hits;
+                hits = Physics.RaycastAll(ray);
+                float distToNearestSimObj = 1000;
+                SimObjPhysics selectedObject = null;
+                for (int ii = 0; ii < hits.Length; ii++)
+                {
+                    RaycastHit hit = hits[ii];
+                    if (hit.transform != null && hit.transform.tag == "SimObjPhysics" && hit.distance < distToNearestSimObj)
+                    {
+                        distToNearestSimObj = hit.distance;
+                        selectedObject = hit.transform.GetComponent<SimObjPhysics>();
+                    }
+                }
+                if (selectedObject != null)
+                {
+                    selectedObjects[ss] = selectedObject.uniqueID;
+                }
+                else
+                {
+                    selectedObjects[ss] = "";
+                }
+                ss++;
+            }
+            this.selectedObjectIds = selectedObjects;
+            actionFinished(true);
+        }
+
+        //public virtual void P(ServerAction action)//use
+        //{
+
+        //}
+    }
 }

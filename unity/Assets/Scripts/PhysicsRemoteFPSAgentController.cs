@@ -379,6 +379,8 @@ namespace UnityStandardAssets.Characters.FirstPerson {
             metaMessage.lastActionSuccess = lastActionSuccess;
             metaMessage.errorMessage = errorMessage;
             metaMessage.actionReturn = this.actionReturn;
+            metaMessage.selectedObjectIds = this.selectedObjectIds;
+
 
             if (errorCode != ServerActionErrorCode.Undefined) {
                 metaMessage.errorCode = Enum.GetName(typeof(ServerActionErrorCode), errorCode);

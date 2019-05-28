@@ -767,11 +767,10 @@ public class PhysicsSceneManager : MonoBehaviour
 		return true;
 	}
 
-
-	//a variation of the CheckSpawnArea logic from InstantiatePrefabTest.cs, but filter out things specifically for stove tops
-	//which are unique due to being placed close together, which can cause objects placed on them to overlap in super weird ways oh
-	//my god it took like 2 days to figure this out it should have been so simple
-	public bool StoveTopCheckSpawnArea(SimObjPhysics simObj, Vector3 position, Quaternion rotation, bool spawningInHand)
+    //a variation of the CheckSpawnArea logic from InstantiatePrefabTest.cs, but filter out things specifically for stove tops
+    //which are unique due to being placed close together, which can cause objects placed on them to overlap in super weird ways oh
+    //my god it took like 2 days to figure this out it should have been so simple
+    public bool StoveTopCheckSpawnArea(SimObjPhysics simObj, Vector3 position, Quaternion rotation, bool spawningInHand)
 	{
 		//print("stove check");
 		int layermask;

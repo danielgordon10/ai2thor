@@ -788,6 +788,13 @@ public class ObjectPose
 }
 
 [Serializable]
+public class ScreenPoint
+{
+    public int x;
+    public int y;
+}
+
+[Serializable]
 public class ObjectToggle
 {
     public string objectType;
@@ -808,6 +815,7 @@ public struct MetadataWrapper
 	public bool collided;
 	public string[] collidedObjects;
 	public InventoryObject[] inventoryObjects;
+    public string[] selectedObjectIds;
 	public string sceneName;
 	public string lastAction;
 	public string errorMessage;
@@ -889,6 +897,7 @@ public class ServerAction
 	public int maxNumRepeats;
     public ObjectTypeCount[] numRepeats;
     public ObjectTypeCount[] minFreePerReceptacleType;
+    public ScreenPoint[] selectedPoints;
     public bool randomizeObjectAppearance;
 	public bool renderImage = true;
 	public bool renderDepthImage;
