@@ -675,6 +675,7 @@ public interface SimpleSimObj {
 	bool IsPickupable {get; }
 	bool IsOpenable {get; }
 	bool IsVisible {get; set;}
+    Bounds Bounds {get; }
     bool IsDisabled { get; set;}
 	bool Open(); 
 	bool Close();

@@ -738,6 +738,7 @@ public class ObjectMetadata
 	public string parentReceptacle;
 	public string[] parentReceptacles;
 	public float currentTime;
+    public float[] bounds3D;
 
 	public ObjectMetadata() { }
 
@@ -752,7 +753,7 @@ public class ObjectMetadata
 		this.openable = simObj.IsOpenable;
 		if (this.openable)
 		{
-			this.isopen = simObj.IsOpen;
+			this.isOpen = simObj.IsOpen;
 		}
 		this.pickupable = simObj.IsPickupable;
 		this.objectId = simObj.UniqueID;

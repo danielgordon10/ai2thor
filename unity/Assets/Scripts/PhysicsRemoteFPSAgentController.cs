@@ -203,9 +203,6 @@ namespace UnityStandardAssets.Characters.FirstPerson {
             }
         }
 
-        public override void PreprocessControlCommand(ServerAction action) {
-            VisibleSimObjPhysics = VisibleSimObjs(action);
-        }
 
         private void LateUpdate() {
             //make sure this happens in late update so all physics related checks are done ahead of time
