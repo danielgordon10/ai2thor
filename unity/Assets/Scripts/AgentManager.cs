@@ -29,6 +29,7 @@ public class AgentManager : MonoBehaviour
 	private bool renderObjectImage;
 	private bool renderNormalsImage;
 	private bool synchronousHttp = true;
+	private Socket sock = null;
 	private List<Camera> thirdPartyCameras = new List<Camera>();
 	
 
@@ -78,7 +79,7 @@ public class AgentManager : MonoBehaviour
 		initializePrimaryAgent();
         primaryAgent.actionDuration = this.actionDuration;
 		readyToEmit = true;
-
+		Debug.Log("Graphics Tier: " + Graphics.activeTier);
 		this.agents.Add (primaryAgent);
 	}
 
@@ -101,6 +102,9 @@ public class AgentManager : MonoBehaviour
 		this.renderDepthImage = action.renderDepthImage;
 		this.renderNormalsImage = action.renderNormalsImage;
 		this.renderObjectImage = action.renderObjectImage;
+		if (action.alwaysReturnVisibleRange) {
+			((PhysicsRemoteFPSAgentController) primaryAgent).alwaysReturnVisibleRange = action.alwaysReturnVisibleRange;
+		}
 		StartCoroutine (addAgents (action));
 
 	}
@@ -137,7 +141,7 @@ public class AgentManager : MonoBehaviour
 		gameObject.transform.eulerAngles = action.rotation;
 		gameObject.transform.position = action.position;
 		readyToEmit = true;
-	} 
+	}
 
 	public void UpdateThirdPartyCamera(ServerAction action) {
 		if (action.thirdPartyCameraId <= thirdPartyCameras.Count) {
@@ -378,6 +382,26 @@ public class AgentManager : MonoBehaviour
 		}
 	}
 
+	// Used for benchmarking only the server-side
+	// no call is made to the Python side
+	private IEnumerator EmitFrameNoClient() {
+		frameCounter += 1;
+
+		bool shouldRender = this.renderImage;
+
+		if (shouldRender) {
+			// we should only read the screen buffer after rendering is complete
+			yield return new WaitForEndOfFrame();
+			if (synchronousHttp) {
+				// must wait an additional frame when in synchronous mode otherwise the frame lags
+				yield return new WaitForEndOfFrame();
+			}
+		}
+
+		string msg = "{\"action\": \"RotateRight\"}";
+		ProcessControlCommand(msg);
+	}
+
 
 	private IEnumerator EmitFrame() {
 
@@ -401,6 +425,7 @@ public class AgentManager : MonoBehaviour
         multiMeta.agents = new MetadataWrapper[this.agents.Count];
         multiMeta.activeAgentId = this.activeAgentId;
         multiMeta.sequenceId = this.currentSequenceId;
+		
 
 		ThirdPartyCameraMetadata[] cameraMetadata = new ThirdPartyCameraMetadata[this.thirdPartyCameras.Count];
 		RenderTexture currentTexture = null;
@@ -448,14 +473,18 @@ public class AgentManager : MonoBehaviour
 
         #if !UNITY_WEBGL
 		if (synchronousHttp) {
-            IPAddress host = IPAddress.Parse(robosimsHost);
-            IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
-            Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            sock.Connect(hostep);
+			if (this.sock == null) {
+				// Debug.Log("connecting to host: " + robosimsHost);
+				IPAddress host = IPAddress.Parse(robosimsHost);
+				IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
+				this.sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+				this.sock.Connect(hostep);
+			}
+
             byte[] rawData = form.data;
 
-            string request = "POST /train HTTP/1.0\r\n" +
+            string request = "POST /train HTTP/1.1\r\n" +
             "Content-Length: " + rawData.Length.ToString() + "\r\n";
 
             foreach (KeyValuePair<string, string> entry in form.headers)
@@ -527,28 +556,8 @@ public class AgentManager : MonoBehaviour
 
 
 
-            //    while (true)
-            //{
-            //    bytesReceived += sock.Receive(buffer, bytesReceived, buffer.Length - bytesReceived, SocketFlags.None);
-            //    int offset = Encoding.ASCII.GetString(buffer).IndexOf("\r\n\r\n");
-            //    if (offset > 0)
-            //    {
-            //        try
-            //        {
-            //            msg = Encoding.ASCII.GetString(buffer).Substring(offset + 4, bytesReceived - (offset - 4));
-            //        } catch
-            //        {
-            //            Debug.Log("issue");
-            //        }
-            //        if (msg.Length > 8)
-            //        {
-            //            Debug.Log("Message: " + msg);
-            //            break;
-            //        }
-            //    }
-            //}
 
-            sock.Close();
+
             ProcessControlCommand(controlCommand);
 		} else {
             using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
@@ -565,6 +574,18 @@ public class AgentManager : MonoBehaviour
         }
         #endif
     }
+	private int parseContentLength(string header) {
+		// Debug.Log("got header: " + header);
+		string[] fields = header.Split(new char[]{'\r','\n'});
+		foreach(string field in fields) {
+			string[] elements = field.Split(new char[]{':'});
+			if (elements[0].ToLower() == "content-length") {
+				return Int32.Parse(elements[1].Trim());
+			}
+		}
+
+		return 0;
+	}
 
 	private BaseFPSAgentController activeAgent() {
 		return this.agents.ToArray () [activeAgentId];
@@ -690,22 +711,30 @@ public class ObjectMetadata
 	public enum Temperature { RoomTemp, Hot, Cold};
 	public string ObjectTemperature;//return current abstracted temperature of object as a string (RoomTemp, Hot, Cold)
 	//
+	public bool canChangeTempToHot;//can change other object temp to hot
+	public bool canChangeTempToCold;//can change other object temp to cool
+	//
 	public bool sliceable;//can this be sliced in some way?
-	public bool issliced;//currently sliced?
+	public bool isSliced;//currently sliced?
 	///
 	public bool openable;
-	public bool isopen;
+	public bool isOpen;
 	///
 	public bool pickupable;
-	public bool ispickedup;//if the pickupable object is actively being held by the agent
-	///
+	public bool isPickedUp;//if the pickupable object is actively being held by the agent
 
+	public float mass;//mass is only for moveable and pickupable objects
+
+	//salient materials are only for pickupable and moveable objects, for now static only objects do not report material back since we have to assign them manually
+	public enum ObjectSalientMaterial {Metal, Wood, Plastic, Glass, Ceramic, Stone, Fabric, Rubber, Food, Paper, Wax, Soap, Sponge, Organic} //salient materials that make up an object (ie: cell phone - metal, glass)
+
+	public string [] salientMaterials; //salient materials that this object is made of as strings (see enum above). This is only for objects that are Pickupable or Moveable
+	///
 	public string[] receptacleObjectIds;
 	public PivotSimObj[] pivotSimObjs;
 	public float distance;
 	public String objectType;
 	public string objectId;
-	public float[] bounds3D;
 	public string parentReceptacle;
 	public string[] parentReceptacles;
 	public float currentTime;
@@ -849,6 +878,7 @@ public struct MetadataWrapper
 
 	public float[] actionFloatsReturn;
 	public Vector3[] actionVector3sReturn;
+	public List<Vector3> visibleRange;
 	public System.Object actionReturn;
 
 	public float currentTime;
@@ -879,11 +909,17 @@ public class ServerAction
 	public int horizon;
 	public Vector3 rotation;
 	public Vector3 position;
+
+	public List<Vector3> positions = null;
 	public bool standing = true;
 	public float fov = 60.0f;
 	public bool forceAction;
 
+	public bool forceKinematic;
+
 	public float maxAgentsDistance = -1.0f;
+
+	public bool alwaysReturnVisibleRange = false;
 	public int sequenceId;
 	public bool snapToGrid = true;
 	public bool continuous;
@@ -891,7 +927,6 @@ public class ServerAction
 	public bool rotateOnTeleport;
 	public bool forceVisible;
 	public bool randomizeOpen;
-	public int pivot;
 	public int randomSeed;
 	public float moveMagnitude;
 
@@ -918,6 +953,8 @@ public class ServerAction
     public ObjectToggle[] objectToggles;
 	public string fillLiquid; //string to indicate what kind of liquid this object should be filled with. Water, Coffee, Wine etc.
 	public float TimeUntilRoomTemp;
+	public bool allowDecayTemperature = true; //set to true if temperature should decay over time, set to false if temp changes should not decay, defaulted true
+	public string StateChange;//a string that specifies which state change to randomly toggle
 	public SimObjType ReceptableSimObjType()
 	{
 		if (string.IsNullOrEmpty(receptacleObjectType))

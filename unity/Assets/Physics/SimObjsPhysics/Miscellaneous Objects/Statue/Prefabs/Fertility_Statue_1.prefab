@@ -1760,7 +1760,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b439f6e4ef5714ee2a3643acf37b7a9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  uniqueID: Statue|+05.00|+05.00|+05.00
+  uniqueID: Statue|+00.00|+00.00|+00.00
   Type: 39
   PrimaryProperty: 3
   SecondaryProperties: 0b000000
@@ -1805,6 +1805,7 @@ MonoBehaviour:
   HFbounciness: 0
   HFrbdrag: 1
   HFrbangulardrag: 0
+  salientMaterials: 05000000
   CurrentTemperature: 0
   HowManySecondsUntilRoomTemp: 10
   ContainedObjectReferences: []
@@ -1838,9 +1839,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   PrefabToSwapTo: {fileID: 158428535, guid: b0c5064c3d9f1f64498a7b475536e77b, type: 3}
   DirtyPrefabToSwapTo: {fileID: 0}
-  ImpulseThreshold: 3.6
+  ImpulseThreshold: 5
   HighFrictionImpulseOffset: 2
+  broken: 0
   breakType: 0
+  MaterialSwapObjects: []
 --- !u!1 &1907732412491078
 GameObject:
   m_ObjectHideFlags: 0
