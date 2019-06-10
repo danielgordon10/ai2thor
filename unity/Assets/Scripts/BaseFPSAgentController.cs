@@ -188,8 +188,10 @@ namespace UnityStandardAssets.Characters.FirstPerson
 			
 			if (actionComplete) 
 			{
-				Debug.LogError ("ActionFinished called with actionComplete already set to true");
-			}
+#if UNITY_EDITOR
+                Debug.LogError ("ActionFinished called with actionComplete already set to true");
+#endif
+            }
 
             if (this.jsInterface)
             {
@@ -336,7 +338,9 @@ namespace UnityStandardAssets.Characters.FirstPerson
             yield return null;
             if (validMovements.Count > 0)
             {
+#if UNITY_EDITOR
                 Debug.Log("Initialize: got total valid initial targets: " + validMovements.Count);
+#endif
                 Vector3 firstMove = validMovements[0];
                 firstMove.y = Physics.gravity.y * this.m_GravityMultiplier;
 
@@ -347,7 +351,9 @@ namespace UnityStandardAssets.Characters.FirstPerson
 
             else
             {
+#if UNITY_EDITOR
                 Debug.Log("Initialize: no valid starting positions found");
+#endif
                 actionFinished(false);
             }
         }
@@ -866,10 +872,15 @@ namespace UnityStandardAssets.Characters.FirstPerson
                 for (int ii = 0; ii < hits.Length; ii++)
                 {
                     RaycastHit hit = hits[ii];
-                    if (hit.transform != null && hit.transform.tag == "SimObjPhysics" && hit.distance < distToNearestSimObj)
+                    if (hit.transform == null || hit.transform.tag == "Player")
                     {
+                        continue;
+                    }
+                    if (hit.distance < distToNearestSimObj && hit.transform.tag == "SimObjPhysics")
+                    {
+                        SimObjPhysics hitObject = hit.transform.GetComponent<SimObjPhysics>();
+                        selectedObject = hitObject;
                         distToNearestSimObj = hit.distance;
-                        selectedObject = hit.transform.GetComponent<SimObjPhysics>();
                     }
                 }
                 if (selectedObject != null)

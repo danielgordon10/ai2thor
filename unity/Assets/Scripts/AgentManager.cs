@@ -476,20 +476,26 @@ public class AgentManager : MonoBehaviour
 
             while (msg == null)
             {
+#if UNITY_EDITOR
                 Debug.Log("waiting for message");
+#endif
                 while (true)
                 {
                     bytes = new byte[bufferSize];
                     int bytesRec = sock.Receive(bytes, bufferSize, SocketFlags.None);
                     sb.Append(Encoding.ASCII.GetString(bytes, 0, bytesRec));
+#if UNITY_EDITOR
                     Debug.Log("got message of length " + bytesRec);
-                    if (bytesRec < bufferSize)
+#endif
+                   if (bytesRec < bufferSize)
                     {
                         break;
                     }
                 }
                 msg = sb.ToString();
+#if UNITY_EDITOR
                 Debug.Log("full message " + msg);
+#endif
                 int offset = msg.IndexOf("\r\n\r\n");
 
                 if (offset > -1)

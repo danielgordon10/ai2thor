@@ -210,11 +210,15 @@ public class InstantiatePrefabTest : MonoBehaviour
         }
         SimObjType parentType = rsps[0].ParentSimObjPhys.ObjType;
         if (minFreePerReceptacleType != null && minFreePerReceptacleType.ContainsKey(parentType)) {
+#if UNITY_EDITOR
             Debug.Log("Limiting " + parentType);
+#endif
         }
         else
         {
+#if UNITY_EDITOR
             Debug.Log("Placing in " + parentType);
+#endif
         }
         if (minFreePerReceptacleType != null && minFreePerReceptacleType.ContainsKey(parentType) && goodRsps.Count < minFreePerReceptacleType[parentType])
         {
