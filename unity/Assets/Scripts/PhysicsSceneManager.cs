@@ -17,7 +17,7 @@ public class PhysicsSceneManager : MonoBehaviour
 	public List<GameObject> RequiredObjects = new List<GameObject>();
 
     //get references to the spawned Required objects after spawning them for the first time.
-    public List<GameObject> SpawnedObjects = new List<GameObject>();
+    public List<GameObject> SpawnedObjects; // = new List<GameObject>();
 	public Dictionary<string, SimObjPhysics> UniqueIdToSimObjPhysics = new Dictionary<string, SimObjPhysics>();
 	public List<SimObjPhysics> ReceptaclesInScene = new List<SimObjPhysics>();
 
@@ -419,7 +419,15 @@ public class PhysicsSceneManager : MonoBehaviour
 
             foreach (GameObject go in SpawnedObjects)
             {
-                SimObjPhysics gop = go.GetComponent<SimObjPhysics>();
+                SimObjPhysics gop = null;
+                try
+                {
+                    gop = go.GetComponent<SimObjPhysics>();
+                }
+                catch
+                {
+                    Debug.Log("Bad");
+                }
                 if (!typeToObjectList.ContainsKey(gop.ObjType))
                 {
                     typeToObjectList[gop.ObjType] = new List<SimObjPhysics>();
