@@ -196,7 +196,7 @@ class Event(object):
                     self.class_masks[cls] = np.logical_or(self.class_masks[cls], unique_masks[color_ind, ...])
 
     def _image_depth(self, image_depth_data):
-        image_depth = read_buffer_image(image_depth_data, self.screen_width, self.screen_height).astype(np.float32)
+        image_depth = read_buffer_image(image_depth_data, self.screen_width, self.screen_height)
         max_spots = image_depth[:,:,0] == 255
         image_depth_out = image_depth[:,:,0] + image_depth[:,:,1] / np.float32(256) + image_depth[:,:,2] / np.float32(256 ** 2)
         image_depth_out[max_spots] = 256
@@ -394,7 +394,7 @@ class Server(object):
                     image_ids=e.add_image_ids,
                     image_classes=e.add_image_classes,
                     image_normals=e.add_image_normals,
-                    image_flow=e.add_image_flow
+                    image_flows=e.add_image_flows
                 )
 
                 for key in image_mapping.keys():
@@ -407,7 +407,7 @@ class Server(object):
                     image_thirdParty_image_ids=e.add_third_party_image_ids,
                     image_thirdParty_classes=e.add_third_party_image_classes,
                     image_thirdParty_normals=e.add_third_party_image_normals,
-                    image_thirdParty_flow=e.add_third_party_image_flow
+                    image_thirdParty_flows=e.add_third_party_image_flows
                 )
 
                 if a['thirdPartyCameras'] is not None:

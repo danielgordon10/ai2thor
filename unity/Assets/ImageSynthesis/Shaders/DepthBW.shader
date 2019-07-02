@@ -1,6 +1,4 @@
-// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
-
-Shader "Hidden/DepthBW" {
+﻿Shader "Hidden/DepthBW" {
      Properties
      {
          _MainTex ("Base (RGB)", 2D) = "white" {}
@@ -11,30 +9,30 @@ Shader "Hidden/DepthBW" {
          Pass
          {
              CGPROGRAM
- 
-             #pragma vertex vert
+
+              #pragma vertex vert
              #pragma fragment frag
              #include "UnityCG.cginc"
-             
-             uniform sampler2D _MainTex;
+
+              uniform sampler2D _MainTex;
              uniform sampler2D _CameraDepthTexture;
              uniform fixed _DepthLevel;
              uniform half4 _MainTex_TexelSize;
- 
-             struct input
+
+              struct input
              {
                  float4 pos : POSITION;
                  half2 uv : TEXCOORD0;
              };
- 
-             struct output
+
+              struct output
              {
                  float4 pos : SV_POSITION;
                  half2 uv : TEXCOORD0;
              };
 
- 
-             output vert(input i)
+
+              output vert(input i)
              {
                  output o;
                  o.pos = UnityObjectToClipPos(i.pos);
@@ -44,18 +42,19 @@ Shader "Hidden/DepthBW" {
                  if (_MainTex_TexelSize.y < 0)
                          o.uv.y = 1 - o.uv.y;
                  #endif
- 
-                 return o;
+
+                  return o;
              }
-             
-             fixed3 frag(output o) : COLOR
+
+              fixed3 frag(output o) : COLOR
              {
                  //depth01 = pow(LinearEyeDepth(depth01), _DepthLevel);
-                 float depth01 = LinearEyeDepth(UNITY_SAMPLE_DEPTH(tex2D(_CameraDepthTexture, o.uv))) / 5;
+                 float depth01 = (LinearEyeDepth(UNITY_SAMPLE_DEPTH(tex2D(_CameraDepthTexture, o.uv))) / 5);
                  return fixed3(depth01, depth01, depth01);
              }
-             
-             ENDCG
+
+              ENDCG
          }
      } 
- }
+ } 
+ 

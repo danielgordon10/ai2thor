@@ -28,6 +28,7 @@ public class AgentManager : MonoBehaviour
 	private bool renderClassImage;
 	private bool renderObjectImage;
 	private bool renderNormalsImage;
+    private bool renderFlowImage;
 	private bool synchronousHttp = true;
 	private Socket sock = null;
 	private List<Camera> thirdPartyCameras = new List<Camera>();
@@ -102,12 +103,19 @@ public class AgentManager : MonoBehaviour
 		this.renderDepthImage = action.renderDepthImage;
 		this.renderNormalsImage = action.renderNormalsImage;
 		this.renderObjectImage = action.renderObjectImage;
+        this.renderFlowImage = action.renderFlowImage;
 		if (action.alwaysReturnVisibleRange) {
 			((PhysicsRemoteFPSAgentController) primaryAgent).alwaysReturnVisibleRange = action.alwaysReturnVisibleRange;
 		}
 		StartCoroutine (addAgents (action));
 
 	}
+
+    //return reference to primary agent in case we need a reference to the primary
+    public BaseFPSAgentController ReturnPrimaryAgent()
+    {
+        return primaryAgent;
+    }
 
 	private IEnumerator addAgents(ServerAction action) {
 		yield return null;
@@ -132,7 +140,7 @@ public class AgentManager : MonoBehaviour
 		gameObject.AddComponent(typeof(Camera));
 		Camera camera = gameObject.GetComponentInChildren<Camera>();
 
-		if (this.renderDepthImage || this.renderClassImage || this.renderObjectImage || this.renderNormalsImage) 
+		if (this.renderDepthImage || this.renderClassImage || this.renderObjectImage || this.renderNormalsImage || this.renderFlowImage) 
 		{
 			gameObject.AddComponent(typeof(ImageSynthesis));
 		}
@@ -154,6 +162,9 @@ public class AgentManager : MonoBehaviour
 
 	private void addAgent(ServerAction action) {
 		Vector3 clonePosition = new Vector3(action.x, action.y, action.z);
+
+		//disable ambient occlusion on primary agetn because it causes issues with multiple main cameras
+		primaryAgent.GetComponent<PhysicsRemoteFPSAgentController>().DisableScreenSpaceAmbientOcclusion();
 
 		BaseFPSAgentController clone = UnityEngine.Object.Instantiate (primaryAgent);
 		clone.IsVisible = action.makeAgentsVisible;
@@ -444,6 +455,7 @@ public class AgentManager : MonoBehaviour
                 addImageSynthesisImageForm(form, imageSynthesis, this.renderNormalsImage, "_normals", "image_thirdParty_normals");
                 addImageSynthesisImageForm(form, imageSynthesis, this.renderObjectImage, "_id", "image_thirdParty_image_ids");
                 addImageSynthesisImageForm(form, imageSynthesis, this.renderClassImage, "_class", "image_thirdParty_classes");
+                addImageSynthesisImageForm(form, imageSynthesis, this.renderClassImage, "_flow", "image_thirdParty_flow");//XXX fix this in a bit
             }
         }
 
@@ -458,6 +470,8 @@ public class AgentManager : MonoBehaviour
                 addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderNormalsImage, "_normals", "image_normals");
                 addObjectImageForm (form, agent, ref metadata);
                 addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderClassImage, "_class", "image_classes");
+                addImageSynthesisImageForm(form, agent.imageSynthesis, this.renderFlowImage, "_flow", "image_flow");
+
                 metadata.thirdPartyCameras = cameraMetadata;
             }
             multiMeta.agents [i] = metadata;
@@ -471,107 +485,97 @@ public class AgentManager : MonoBehaviour
         form.AddField("metadata", Newtonsoft.Json.JsonConvert.SerializeObject(multiMeta));
         form.AddField("token", robosimsClientToken);
 
-        #if !UNITY_WEBGL
+        #if !UNITY_WEBGL 
 		if (synchronousHttp) {
+
 
 			if (this.sock == null) {
 				// Debug.Log("connecting to host: " + robosimsHost);
 				IPAddress host = IPAddress.Parse(robosimsHost);
 				IPEndPoint hostep = new IPEndPoint(host, robosimsPort);
 				this.sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-				this.sock.Connect(hostep);
+                try {
+				    this.sock.Connect(hostep);
+                }
+                catch (SocketException e) {
+                    Debug.Log("Socket exception: " + e.ToString());
+                }
 			}
+            
 
-            byte[] rawData = form.data;
+            if (this.sock != null && this.sock.Connected) {
+                byte[] rawData = form.data;
 
-            string request = "POST /train HTTP/1.1\r\n" +
-            "Content-Length: " + rawData.Length.ToString() + "\r\n";
+                string request = "POST /train HTTP/1.1\r\n" +
+                "Content-Length: " + rawData.Length.ToString() + "\r\n";
 
-            foreach (KeyValuePair<string, string> entry in form.headers)
-            {
-                request += entry.Key + ": " + entry.Value + "\r\n";
-            }
-            request += "\r\n";
+                foreach(KeyValuePair<string, string> entry in form.headers) {
+                    request += entry.Key + ": " + entry.Value + "\r\n";
+                }
+                request += "\r\n";
 
-            int sent = sock.Send(Encoding.ASCII.GetBytes(request));
-            sent = sock.Send(rawData);
-            //byte[] buffer = new byte[4096];
-            StringBuilder sb = new StringBuilder();
-            string msg = null;
-            // Incoming data from the client.    
-            byte[] bytes;
-            int bufferSize = 4096;
-            ServerAction controlCommand = new ServerAction();
+                int sent = this.sock.Send(Encoding.ASCII.GetBytes(request));
+                sent = this.sock.Send(rawData);
+                byte[] headerBuffer = new byte[1024];
+                int bytesReceived = 0;
+                byte[] bodyBuffer = null;
+                int bodyBytesReceived = 0;
+                int contentLength = 0;
 
-            while (msg == null)
-            {
-#if UNITY_EDITOR
-                Debug.Log("waiting for message");
-#endif
-                while (true)
-                {
-                    bytes = new byte[bufferSize];
-                    int bytesRec = sock.Receive(bytes, bufferSize, SocketFlags.None);
-                    sb.Append(Encoding.ASCII.GetString(bytes, 0, bytesRec));
-#if UNITY_EDITOR
-                    Debug.Log("got message of length " + bytesRec);
-#endif
-                   if (bytesRec < bufferSize)
-                    {
+                // read header
+                while (true) {
+                    int received = this.sock.Receive(headerBuffer, bytesReceived, headerBuffer.Length - bytesReceived, SocketFlags.None);	
+                    if (received == 0) {
+                        Debug.LogError("0 bytes received attempting to read header - connection closed");
+                        break;
+                    }
+(??)
+
+                    bytesReceived += received;;
+                    string headerMsg = Encoding.ASCII.GetString(headerBuffer, 0, bytesReceived);
+                    int offset = headerMsg.IndexOf("\r\n\r\n");
+                    if (offset > 0){
+                        contentLength = parseContentLength(headerMsg.Substring(0, offset));
+                        bodyBuffer = new byte[contentLength];
+                        bodyBytesReceived = bytesReceived - (offset + 4);
+                        Array.Copy(headerBuffer, offset + 4, bodyBuffer, 0, bodyBytesReceived);
                         break;
                     }
                 }
-                msg = sb.ToString();
-#if UNITY_EDITOR
-                Debug.Log("full message " + msg);
-#endif
-                int offset = msg.IndexOf("\r\n\r\n");
 
-                if (offset > -1)
-                {
-                    msg = msg.Substring(offset + 4);
-
-                    if (msg.Length > 8)
-                    {
-                        Debug.Log("Message: " + msg);
-                    } else
-                    {
-                        msg = null;
+                // read body
+                while (bodyBytesReceived < contentLength) {
+                    // check for 0 bytes received
+                    int received = this.sock.Receive(bodyBuffer, bodyBytesReceived, bodyBuffer.Length - bodyBytesReceived, SocketFlags.None);	
+                    if (received == 0) {
+                        Debug.LogError("0 bytes received attempting to read body - connection closed");
+                        break;
                     }
+
+                    bodyBytesReceived += received;
+                    //Debug.Log("total bytes received: " + bodyBytesReceived);
                 }
-                else
-                {
-                    msg = null;
-                }
-                try
-                {
-                    controlCommand = new ServerAction();
-                    JsonUtility.FromJsonOverwrite(msg, controlCommand);
-                }
-                catch
-                {
-                    msg = null;
-                }
+
+                string msg = Encoding.ASCII.GetString(bodyBuffer, 0, bodyBytesReceived);
+                ProcessControlCommand(msg);
             }
-
-
-
-
-
-            ProcessControlCommand(controlCommand);
 		} else {
             using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
             {
                 yield return www.SendWebRequest();
 
-                if (www.isNetworkError || www.isHttpError)
-                {
-                    Debug.Log("Error: " + www.error);
-                    yield break;
-                }
-                ProcessControlCommand(www.downloadHandler.text);
-            }
-        }
+			using (var www = UnityWebRequest.Post("http://" + robosimsHost + ":" + robosimsPort + "/train", form))
+			{
+				yield return www.SendWebRequest();
+
+				if (www.isNetworkError || www.isHttpError)
+				{
+					Debug.Log("Error: " + www.error);
+					yield break;
+				}
+				ProcessControlCommand(www.downloadHandler.text);
+			}
+		}
         #endif
     }
 	private int parseContentLength(string header) {
@@ -946,6 +950,7 @@ public class ServerAction
 	public bool renderClassImage;
 	public bool renderObjectImage;
 	public bool renderNormalsImage;
+    public bool renderFlowImage;
 	public float cameraY;
     public int degreeIncrement = 90;
 	public bool placeStationary = true; //when placing/spawning an object, do we spawn it stationary (kinematic true) or spawn and let physics resolve final position
